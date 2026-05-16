@@ -1,8 +1,47 @@
+import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
+function resolveCorsOrigins(corsOrigins: string | undefined): true | string[] {
+  if (!corsOrigins || corsOrigins.trim() === '*' || corsOrigins.trim() === '') {
+    return true;
+  }
+
+  return corsOrigins
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3000);
+  const configService = app.get(ConfigService);
+
+  app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+  app.enableCors({
+    origin: resolveCorsOrigins(configService.get<string>('CORS_ORIGINS')),
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+  app.enableShutdownHooks();
+
+  const port = Number(configService.get<string>('PORT') ?? 3000);
+
+  await app.listen(port);
 }
 void bootstrap();
