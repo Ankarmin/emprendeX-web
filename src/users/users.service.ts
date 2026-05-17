@@ -14,15 +14,34 @@ import {
 } from 'typeorm';
 import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
-import { BusinessModuleStatus, UserStatus } from '../database/database.enums';
+import {
+  BusinessModuleStatus,
+  PlanPeriod,
+  UserStatus,
+} from '../database/database.enums';
 import { FeatureModuleEntity } from '../modules/entities/feature-module.entity';
+import { PlanPrice } from '../plans/entities/plan-price.entity';
 import { PublicUser } from './types/public-user.type';
+import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from './entities/user.entity';
 import { AVAILABLE_MODULE_IDS } from './users.constants';
 
 type SeedUserInput = {
   email: string;
   password: string;
+};
+
+type SeedAccountInput = {
+  email: string;
+  password: string;
+  firstNames: string;
+  lastNames: string;
+  phone: string;
+  businessName: string;
+  businessCategory: string;
+  planName: 'Basic' | 'Premium';
+  planPeriod: 'Monthly' | 'Yearly';
+  enabledModuleIds: (typeof AVAILABLE_MODULE_IDS)[number][];
 };
 
 type AuthUserRecord = {
@@ -54,6 +73,15 @@ export type UserSessionState = {
   phone: string;
   status: UserStatus;
   enabledModuleIds: string[];
+  activeSubscription: {
+    id: string;
+    planName: string;
+    period: 'Monthly' | 'Yearly';
+    price: string;
+    endsAt: string;
+    isActive: boolean;
+    isPremium: boolean;
+  } | null;
   businessProfile: {
     id: string | null;
     name: string | null;
@@ -73,6 +101,10 @@ export class UsersService {
     private readonly businessModulesRepository: Repository<BusinessModule>,
     @InjectRepository(FeatureModuleEntity)
     private readonly modulesRepository: Repository<FeatureModuleEntity>,
+    @InjectRepository(Subscription)
+    private readonly subscriptionsRepository: Repository<Subscription>,
+    @InjectRepository(PlanPrice)
+    private readonly planPricesRepository: Repository<PlanPrice>,
   ) {}
 
   async findById(id: string): Promise<UserSessionState | null> {
@@ -119,6 +151,72 @@ export class UsersService {
       businessName: 'Negocio Demo',
       businessCategory: 'General',
     });
+  }
+
+  async ensureDemoAccount({
+    email,
+    password,
+    firstNames,
+    lastNames,
+    phone,
+    businessName,
+    businessCategory,
+    planName,
+    planPeriod,
+    enabledModuleIds,
+  }: SeedAccountInput): Promise<void> {
+    const normalizedEmail = this.normalizeEmail(email);
+    const existingUser = await this.usersRepository.findOne({
+      where: { email: normalizedEmail },
+      select: { userId: true },
+    });
+
+    if (existingUser) {
+      await this.dataSource.transaction(async (manager) => {
+        const usersRepository = manager.getRepository(User);
+
+        await usersRepository.update(
+          { userId: existingUser.userId },
+          {
+            firstNames: firstNames.trim(),
+            lastNames: lastNames.trim(),
+            phone: phone.trim(),
+            status: UserStatus.Active,
+          },
+        );
+      });
+
+      await this.updateBusinessProfile(existingUser.userId, {
+        businessName,
+        businessCategory,
+      });
+      await this.ensureSubscriptionForUser(existingUser.userId, {
+        planName,
+        planPeriod,
+      });
+      await this.completeOnboardingModules(
+        existingUser.userId,
+        enabledModuleIds,
+      );
+      return;
+    }
+
+    const createdUser = await this.create({
+      firstNames,
+      lastNames,
+      phone,
+      email: normalizedEmail,
+      password,
+      businessName,
+      businessCategory,
+    });
+
+    await this.ensureSubscriptionForUser(createdUser.id, {
+      planName,
+      planPeriod,
+    });
+
+    await this.completeOnboardingModules(createdUser.id, enabledModuleIds);
   }
 
   async create({
@@ -274,6 +372,7 @@ export class UsersService {
       status: user.status,
       onboardingCompleted: !this.requiresOnboarding(user),
       enabledModuleIds: user.enabledModuleIds,
+      activeSubscription: user.activeSubscription,
       businessProfile: user.businessProfile,
     };
   }
@@ -310,6 +409,10 @@ export class UsersService {
           businessModulesRepository,
         )
       : [];
+    const activeSubscription = await this.loadActiveSubscription(
+      userId,
+      manager,
+    );
 
     return {
       id: user.userId,
@@ -319,6 +422,7 @@ export class UsersService {
       phone: user.phone,
       status: user.status,
       enabledModuleIds,
+      activeSubscription,
       businessProfile: {
         id: business?.businessId ?? null,
         name: business?.businessName ?? null,
@@ -364,6 +468,98 @@ export class UsersService {
           moduleId as (typeof AVAILABLE_MODULE_IDS)[number],
         ),
       );
+  }
+
+  private async loadActiveSubscription(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<UserSessionState['activeSubscription']> {
+    const subscriptionsRepository =
+      manager?.getRepository(Subscription) ?? this.subscriptionsRepository;
+
+    const subscription = await subscriptionsRepository.findOne({
+      where: {
+        userId,
+        status: true,
+      },
+      relations: {
+        planPrice: {
+          plan: true,
+        },
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+
+    if (!subscription) {
+      return null;
+    }
+
+    return {
+      id: subscription.subscriptionId,
+      planName: subscription.planPrice.plan.name,
+      period: subscription.planPrice.period,
+      price: subscription.planPrice.price,
+      endsAt: subscription.endDate.toISOString(),
+      isActive: subscription.status,
+      isPremium:
+        subscription.planPrice.plan.name.trim().toLowerCase() === 'premium',
+    };
+  }
+
+  private async ensureSubscriptionForUser(
+    userId: string,
+    planSelection: Pick<SeedAccountInput, 'planName' | 'planPeriod'>,
+  ): Promise<void> {
+    const planPrice = await this.planPricesRepository.findOne({
+      where: {
+        period:
+          planSelection.planPeriod === 'Yearly'
+            ? PlanPeriod.Yearly
+            : PlanPeriod.Monthly,
+        plan: {
+          name: planSelection.planName,
+        },
+      },
+      relations: {
+        plan: true,
+      },
+    });
+
+    if (!planPrice) {
+      throw new Error(
+        `Plan price not found for ${planSelection.planName} ${planSelection.planPeriod}`,
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const subscriptionsRepository = manager.getRepository(Subscription);
+
+      await subscriptionsRepository.delete({ userId });
+
+      const subscription = subscriptionsRepository.create({
+        planPriceId: planPrice.planPriceId,
+        userId,
+        startDate: new Date(),
+        endDate: this.buildSubscriptionEndDate(planSelection.planPeriod),
+        status: true,
+      });
+
+      await subscriptionsRepository.save(subscription);
+    });
+  }
+
+  private buildSubscriptionEndDate(period: 'Monthly' | 'Yearly'): Date {
+    const date = new Date();
+
+    if (period === 'Yearly') {
+      date.setFullYear(date.getFullYear() + 1);
+      return date;
+    }
+
+    date.setMonth(date.getMonth() + 1);
+    return date;
   }
 
   private normalizeEmail(email: string): string {

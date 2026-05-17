@@ -153,6 +153,27 @@ export class InitializePlatformSchema20260517000000 implements MigrationInterfac
         ('pagos', 'Basic'),
         ('reportes', 'Premium')
     `);
+
+    await queryRunner.query(`
+      INSERT INTO "plans" ("name", "description", "status")
+      VALUES
+        ('Basic', 'Acceso a los módulos esenciales del negocio', 'Enabled'),
+        ('Premium', 'Acceso ampliado a módulos avanzados y premium', 'Enabled')
+    `);
+
+    await queryRunner.query(`
+      INSERT INTO "plan_prices" ("plan_id", "period", "status", "price")
+      SELECT "plan_id", 'Monthly', TRUE,
+        CASE WHEN "name" = 'Basic' THEN 29.90 ELSE 79.90 END
+      FROM "plans"
+    `);
+
+    await queryRunner.query(`
+      INSERT INTO "plan_prices" ("plan_id", "period", "status", "price")
+      SELECT "plan_id", 'Yearly', TRUE,
+        CASE WHEN "name" = 'Basic' THEN 299.90 ELSE 799.90 END
+      FROM "plans"
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

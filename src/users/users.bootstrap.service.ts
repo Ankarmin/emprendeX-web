@@ -1,25 +1,42 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
 
 @Injectable()
 export class UsersBootstrapService implements OnModuleInit {
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   async onModuleInit(): Promise<void> {
-    const email = this.configService.get<string>('SEED_USER_EMAIL');
-    const password = this.configService.get<string>('SEED_USER_PASSWORD');
+    await this.usersService.ensureDemoAccount({
+      email: 'basico@emprendex.app',
+      password: 'Basico123!',
+      firstNames: 'Carla',
+      lastNames: 'Rojas',
+      phone: '900111222',
+      businessName: 'Dulce Taller',
+      businessCategory: 'Pastelería personalizada',
+      planName: 'Basic',
+      planPeriod: 'Monthly',
+      enabledModuleIds: ['operaciones', 'clientes', 'pagos'],
+    });
 
-    if (!email || !password) {
-      return;
-    }
-
-    await this.usersService.ensureSeedUser({
-      email,
-      password,
+    await this.usersService.ensureDemoAccount({
+      email: 'premium@emprendex.app',
+      password: 'Premium123!',
+      firstNames: 'Diego',
+      lastNames: 'Mendoza',
+      phone: '900333444',
+      businessName: 'Taller Norte',
+      businessCategory: 'Tecnología / Electrónica',
+      planName: 'Premium',
+      planPeriod: 'Monthly',
+      enabledModuleIds: [
+        'operaciones',
+        'clientes',
+        'productos',
+        'cotizaciones',
+        'pagos',
+        'reportes',
+      ],
     });
   }
 }
