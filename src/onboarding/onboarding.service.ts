@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthStateResponse } from '../auth/types/auth-state-response.type';
-import { UsersService } from '../users/users.service';
+import { type UserSessionState, UsersService } from '../users/users.service';
 import { UpdateOnboardingModulesDto } from './dto/update-onboarding-modules.dto';
 import { UpdateOnboardingSetupDto } from './dto/update-onboarding-setup.dto';
 
@@ -15,7 +15,6 @@ export class OnboardingService {
     const user = await this.usersService.updateBusinessProfile(userId, {
       businessName: updateOnboardingSetupDto.businessName,
       businessCategory: updateOnboardingSetupDto.businessCategory,
-      currencyCode: updateOnboardingSetupDto.currencyCode,
     });
 
     if (!user) {
@@ -41,19 +40,11 @@ export class OnboardingService {
     return this.buildAuthStateResponse(user);
   }
 
-  private buildAuthStateResponse(user: {
-    id: string;
-    email: string;
-    businessName: string | null;
-    businessCategory: string | null;
-    currencyCode: string | null;
-    onboardingCompleted: boolean;
-    enabledModuleIds: string[];
-  }): AuthStateResponse {
+  private buildAuthStateResponse(user: UserSessionState): AuthStateResponse {
     const publicUser = this.usersService.toPublicUser(user);
 
     return {
-      requiresOnboarding: !publicUser.onboardingCompleted,
+      requiresOnboarding: this.usersService.requiresOnboarding(user),
       user: publicUser,
     };
   }

@@ -1,18 +1,13 @@
-import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
-import { SUPPORTED_CURRENCIES } from '../../users/users.constants';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateOnboardingSetupDto {
   @IsString()
   @MinLength(2)
-  @MaxLength(120)
+  @MaxLength(100)
   businessName!: string;
 
   @IsString()
   @MinLength(2)
-  @MaxLength(120)
+  @MaxLength(100)
   businessCategory!: string;
-
-  @IsString()
-  @IsIn(SUPPORTED_CURRENCIES)
-  currencyCode!: (typeof SUPPORTED_CURRENCIES)[number];
 }
