@@ -1,72 +1,54 @@
-import { randomUUID } from 'crypto';
 import {
-  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
-  PrimaryColumn,
-  UpdateDateColumn,
+  OneToMany,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
+import { UserStatus } from '../../database/database.enums';
+import { Business } from '../../businesses/entities/business.entity';
+import { Subscription } from '../../subscriptions/entities/subscription.entity';
 
 @Entity({ name: 'users' })
 export class User {
-  @PrimaryColumn('uuid')
-  id!: string;
+  @PrimaryGeneratedColumn('uuid', { name: 'user_id' })
+  userId!: string;
 
-  @Column({ type: 'varchar', unique: true, length: 160 })
+  @Column({ type: 'varchar', name: 'first_names', length: 100 })
+  firstNames!: string;
+
+  @Column({ type: 'varchar', name: 'last_names', length: 100 })
+  lastNames!: string;
+
+  @Column({
+    type: 'varchar',
+    name: 'password',
+    length: 255,
+    nullable: true,
+    select: false,
+  })
+  passwordHash!: string | null;
+
+  @Column({ type: 'varchar', name: 'email', unique: true, length: 150 })
   email!: string;
 
-  @Column({
-    type: 'varchar',
-    name: 'password_hash',
-    select: false,
-    length: 255,
-  })
-  passwordHash!: string;
+  @Column({ type: 'varchar', name: 'phone', length: 20 })
+  phone!: string;
 
   @Column({
-    type: 'varchar',
-    name: 'business_name',
-    nullable: true,
-    length: 120,
+    type: 'enum',
+    enum: UserStatus,
+    enumName: 'user_status_enum',
+    default: UserStatus.Active,
   })
-  businessName!: string | null;
+  status!: UserStatus;
 
-  @Column({
-    type: 'varchar',
-    name: 'business_category',
-    nullable: true,
-    length: 120,
-  })
-  businessCategory!: string | null;
-
-  @Column({
-    type: 'varchar',
-    name: 'currency_code',
-    nullable: true,
-    length: 10,
-  })
-  currencyCode!: string | null;
-
-  @Column({ name: 'onboarding_completed', default: false })
-  onboardingCompleted!: boolean;
-
-  @Column({
-    type: 'text',
-    name: 'enabled_module_ids',
-    array: true,
-    default: () => "'{}'",
-  })
-  enabledModuleIds!: string[];
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt!: Date;
+  @OneToMany(() => Business, (business) => business.user)
+  businesses!: Business[];
 
-  @BeforeInsert()
-  assignId() {
-    this.id ??= randomUUID();
-  }
+  @OneToMany(() => Subscription, (subscription) => subscription.user)
+  subscriptions!: Subscription[];
 }
