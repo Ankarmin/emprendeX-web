@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Business } from '../../businesses/entities/business.entity';
-import { CatalogServiceEntity } from './service.entity';
+import { ProductosServiciosEntity } from './service.entity';
 
 @Entity({ name: 'categories' })
 export class CategoryEntity {
@@ -30,6 +30,6 @@ export class CategoryEntity {
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;
 
-  @OneToMany(() => CatalogServiceEntity, (service) => service.category)
-  services!: CatalogServiceEntity[];
+  @OneToMany(() => ProductosServiciosEntity, (service) => service.category)
+  services!: ProductosServiciosEntity[];
 }

@@ -12,12 +12,13 @@ import { BusinessModule } from '../businesses/entities/business-module.entity';
 import { CategoryEntity } from './entities/category.entity';
 import { ItemEntity } from './entities/item.entity';
 import { ProductEntity } from './entities/product.entity';
-import { CatalogServiceEntity } from './entities/service.entity';
+import { ProductosServiciosEntity } from './entities/service.entity';
 import { UnitEntity } from './entities/unit.entity';
 import { CreateItemDto } from './dto/create-item.dto';
+import { UpdateItemDto } from './dto/update-item.dto';
 import { BusinessModuleStatus, ItemClass } from '../database/database.enums';
 
-type CatalogItemResponse = {
+type ProductosServiciosItemResponse = {
   id: string;
   itemClass: ItemClass;
   name: string;
@@ -44,7 +45,7 @@ type CatalogItemResponse = {
 };
 
 @Injectable()
-export class CatalogService {
+export class ProductosServiciosService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Business)
@@ -59,8 +60,8 @@ export class CatalogService {
     private readonly itemsRepository: Repository<ItemEntity>,
     @InjectRepository(ProductEntity)
     private readonly productsRepository: Repository<ProductEntity>,
-    @InjectRepository(CatalogServiceEntity)
-    private readonly servicesRepository: Repository<CatalogServiceEntity>,
+    @InjectRepository(ProductosServiciosEntity)
+    private readonly servicesRepository: Repository<ProductosServiciosEntity>,
   ) {}
 
   async getUnits(userId: string) {
@@ -92,7 +93,7 @@ export class CatalogService {
     }));
   }
 
-  async getItems(userId: string): Promise<CatalogItemResponse[]> {
+  async getItems(userId: string): Promise<ProductosServiciosItemResponse[]> {
     const business = await this.getBusinessOrThrow(userId);
     const [products, services] = await Promise.all([
       this.productsRepository.find({
@@ -142,7 +143,7 @@ export class CatalogService {
   async getItemById(
     userId: string,
     itemId: string,
-  ): Promise<CatalogItemResponse> {
+  ): Promise<ProductosServiciosItemResponse> {
     const business = await this.getBusinessOrThrow(userId);
 
     const product = await this.productsRepository.findOne({
@@ -179,13 +180,13 @@ export class CatalogService {
       return this.mapServiceItem(service);
     }
 
-    throw new NotFoundException('Catalog item not found');
+    throw new NotFoundException('Productos y servicios item not found');
   }
 
   async createItem(
     userId: string,
     createItemDto: CreateItemDto,
-  ): Promise<CatalogItemResponse> {
+  ): Promise<ProductosServiciosItemResponse> {
     const business = await this.getBusinessOrThrow(userId);
 
     try {
@@ -203,10 +204,46 @@ export class CatalogService {
     }
   }
 
+  async updateItem(
+    userId: string,
+    itemId: string,
+    updateItemDto: UpdateItemDto,
+  ): Promise<ProductosServiciosItemResponse> {
+    const item = await this.getItemById(userId, itemId);
+    const business = await this.getBusinessOrThrow(userId);
+
+    if (item.itemClass === ItemClass.Product) {
+      return this.updateProductItem(business.businessId, itemId, updateItemDto);
+    }
+
+    return this.updateServiceItem(business.businessId, itemId, updateItemDto);
+  }
+
+  async deleteItem(userId: string, itemId: string): Promise<void> {
+    const item = await this.getItemById(userId, itemId);
+    await this.getBusinessOrThrow(userId);
+
+    await this.dataSource.transaction(async (manager) => {
+      const itemsRepository = manager.getRepository(ItemEntity);
+      const productsRepository = manager.getRepository(ProductEntity);
+      const servicesRepository = manager.getRepository(
+        ProductosServiciosEntity,
+      );
+
+      if (item.itemClass === ItemClass.Product) {
+        await productsRepository.delete({ itemId });
+      } else {
+        await servicesRepository.delete({ itemId });
+      }
+
+      await itemsRepository.delete({ itemId });
+    });
+  }
+
   private async createProductItem(
     businessId: string,
     createItemDto: CreateItemDto,
-  ): Promise<CatalogItemResponse> {
+  ): Promise<ProductosServiciosItemResponse> {
     if (!createItemDto.unitId) {
       throw new BadRequestException('Unit is required for products');
     }
@@ -256,7 +293,7 @@ export class CatalogService {
   private async createServiceItem(
     businessId: string,
     createItemDto: CreateItemDto,
-  ): Promise<CatalogItemResponse> {
+  ): Promise<ProductosServiciosItemResponse> {
     if (!createItemDto.categoryId) {
       throw new BadRequestException('Category is required for services');
     }
@@ -276,7 +313,9 @@ export class CatalogService {
 
     const savedService = await this.dataSource.transaction(async (manager) => {
       const itemsRepository = manager.getRepository(ItemEntity);
-      const servicesRepository = manager.getRepository(CatalogServiceEntity);
+      const servicesRepository = manager.getRepository(
+        ProductosServiciosEntity,
+      );
 
       const item = itemsRepository.create({
         itemClass: ItemClass.Service,
@@ -312,33 +351,191 @@ export class CatalogService {
       throw new BadRequestException('Business profile is not configured');
     }
 
-    await this.ensureCatalogModuleEnabled(business.businessId);
+    await this.ensureProductosServiciosModuleEnabled(business.businessId);
 
     return business;
   }
 
-  private async ensureCatalogModuleEnabled(businessId: string): Promise<void> {
-    const catalogModule = await this.businessModulesRepository.findOne({
+  private async updateProductItem(
+    businessId: string,
+    itemId: string,
+    updateItemDto: UpdateItemDto,
+  ): Promise<ProductosServiciosItemResponse> {
+    const product = await this.productsRepository.findOne({
       where: {
-        businessId,
-        status: BusinessModuleStatus.Enabled,
-        module: {
-          moduleName: 'productos',
+        itemId,
+        unit: {
+          businessId,
         },
       },
       relations: {
-        module: true,
+        item: true,
+        unit: true,
       },
     });
 
-    if (!catalogModule) {
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    let nextUnit = product.unit;
+
+    if (updateItemDto.unitId) {
+      const unit = await this.unitsRepository.findOne({
+        where: {
+          unitId: updateItemDto.unitId,
+          businessId,
+        },
+      });
+
+      if (!unit) {
+        throw new BadRequestException(
+          'Selected unit does not belong to the business',
+        );
+      }
+
+      nextUnit = unit;
+    }
+
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const itemsRepository = manager.getRepository(ItemEntity);
+        const productsRepository = manager.getRepository(ProductEntity);
+
+        product.item.name = updateItemDto.name?.trim() || product.item.name;
+        product.item.description =
+          updateItemDto.description !== undefined
+            ? updateItemDto.description.trim() || null
+            : product.item.description;
+        product.item.sku =
+          updateItemDto.sku !== undefined
+            ? updateItemDto.sku.trim() || null
+            : product.item.sku;
+        product.item.price = updateItemDto.price ?? product.item.price;
+
+        await itemsRepository.save(product.item);
+
+        product.unitId = nextUnit.unitId;
+        product.unit = nextUnit;
+        product.stock = updateItemDto.stock ?? product.stock;
+
+        await productsRepository.save(product);
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        throw new ConflictException('The SKU is already registered');
+      }
+
+      throw error;
+    }
+
+    return this.mapProductItem(product);
+  }
+
+  private async updateServiceItem(
+    businessId: string,
+    itemId: string,
+    updateItemDto: UpdateItemDto,
+  ): Promise<ProductosServiciosItemResponse> {
+    const service = await this.servicesRepository.findOne({
+      where: {
+        itemId,
+        category: {
+          businessId,
+        },
+      },
+      relations: {
+        item: true,
+        category: true,
+      },
+    });
+
+    if (!service) {
+      throw new NotFoundException('Service not found');
+    }
+
+    let nextCategory = service.category;
+
+    if (updateItemDto.categoryId) {
+      const category = await this.categoriesRepository.findOne({
+        where: {
+          categoryId: updateItemDto.categoryId,
+          businessId,
+        },
+      });
+
+      if (!category) {
+        throw new BadRequestException(
+          'Selected category does not belong to the business',
+        );
+      }
+
+      nextCategory = category;
+    }
+
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const itemsRepository = manager.getRepository(ItemEntity);
+        const servicesRepository = manager.getRepository(
+          ProductosServiciosEntity,
+        );
+
+        service.item.name = updateItemDto.name?.trim() || service.item.name;
+        service.item.description =
+          updateItemDto.description !== undefined
+            ? updateItemDto.description.trim() || null
+            : service.item.description;
+        service.item.sku =
+          updateItemDto.sku !== undefined
+            ? updateItemDto.sku.trim() || null
+            : service.item.sku;
+        service.item.price = updateItemDto.price ?? service.item.price;
+
+        await itemsRepository.save(service.item);
+
+        service.categoryId = nextCategory.categoryId;
+        service.category = nextCategory;
+
+        await servicesRepository.save(service);
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        throw new ConflictException('The SKU is already registered');
+      }
+
+      throw error;
+    }
+
+    return this.mapServiceItem(service);
+  }
+
+  private async ensureProductosServiciosModuleEnabled(
+    businessId: string,
+  ): Promise<void> {
+    const productosServiciosModule =
+      await this.businessModulesRepository.findOne({
+        where: {
+          businessId,
+          status: BusinessModuleStatus.Enabled,
+          module: {
+            moduleName: 'productos',
+          },
+        },
+        relations: {
+          module: true,
+        },
+      });
+
+    if (!productosServiciosModule) {
       throw new ForbiddenException(
-        'The catalog module is not enabled for this business',
+        'The productos-servicios module is not enabled for this business',
       );
     }
   }
 
-  private mapProductItem(product: ProductEntity): CatalogItemResponse {
+  private mapProductItem(
+    product: ProductEntity,
+  ): ProductosServiciosItemResponse {
     return {
       id: product.item.itemId,
       itemClass: product.item.itemClass,
@@ -360,7 +557,9 @@ export class CatalogService {
     };
   }
 
-  private mapServiceItem(service: CatalogServiceEntity): CatalogItemResponse {
+  private mapServiceItem(
+    service: ProductosServiciosEntity,
+  ): ProductosServiciosItemResponse {
     return {
       id: service.item.itemId,
       itemClass: service.item.itemClass,

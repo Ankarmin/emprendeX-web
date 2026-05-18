@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 import { ItemClass } from '../../database/database.enums';
 import { ProductEntity } from './product.entity';
-import { CatalogServiceEntity } from './service.entity';
+import { ProductosServiciosEntity } from './service.entity';
 
 @Entity({ name: 'items' })
 export class ItemEntity {
@@ -52,6 +52,6 @@ export class ItemEntity {
   @OneToOne(() => ProductEntity, (product) => product.item)
   product!: ProductEntity | null;
 
-  @OneToOne(() => CatalogServiceEntity, (service) => service.item)
-  service!: CatalogServiceEntity | null;
+  @OneToOne(() => ProductosServiciosEntity, (service) => service.item)
+  service!: ProductosServiciosEntity | null;
 }

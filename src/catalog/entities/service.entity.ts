@@ -10,7 +10,7 @@ import { CategoryEntity } from './category.entity';
 import { ItemEntity } from './item.entity';
 
 @Entity({ name: 'services' })
-export class CatalogServiceEntity {
+export class ProductosServiciosEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'service_id' })
   serviceId!: string;
 

@@ -3,7 +3,7 @@ import { BusinessModule } from '../businesses/entities/business-module.entity';
 import { CategoryEntity } from '../catalog/entities/category.entity';
 import { ItemEntity } from '../catalog/entities/item.entity';
 import { ProductEntity } from '../catalog/entities/product.entity';
-import { CatalogServiceEntity } from '../catalog/entities/service.entity';
+import { ProductosServiciosEntity } from '../catalog/entities/service.entity';
 import { UnitEntity } from '../catalog/entities/unit.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { FeatureModuleEntity } from '../modules/entities/feature-module.entity';
@@ -25,5 +25,5 @@ export const databaseEntities = [
   BusinessModule,
   ItemEntity,
   ProductEntity,
-  CatalogServiceEntity,
+  ProductosServiciosEntity,
 ];

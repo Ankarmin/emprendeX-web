@@ -1,38 +1,43 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { CatalogService } from './catalog.service';
+import { ProductosServiciosService } from './catalog.service';
 import { CreateItemDto } from './dto/create-item.dto';
+import { UpdateItemDto } from './dto/update-item.dto';
 
-@Controller({ path: 'catalog', version: '1' })
+@Controller({ path: 'productos-servicios', version: '1' })
 @UseGuards(JwtAuthGuard)
-export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+export class ProductosServiciosController {
+  constructor(
+    private readonly productosServiciosService: ProductosServiciosService,
+  ) {}
 
   @Get('units')
   getUnits(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.catalogService.getUnits(currentUser.id);
+    return this.productosServiciosService.getUnits(currentUser.id);
   }
 
   @Get('categories')
   getCategories(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.catalogService.getCategories(currentUser.id);
+    return this.productosServiciosService.getCategories(currentUser.id);
   }
 
   @Get('items')
   getItems(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.catalogService.getItems(currentUser.id);
+    return this.productosServiciosService.getItems(currentUser.id);
   }
 
   @Get('items/:itemId')
@@ -40,7 +45,7 @@ export class CatalogController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
   ) {
-    return this.catalogService.getItemById(currentUser.id, itemId);
+    return this.productosServiciosService.getItemById(currentUser.id, itemId);
   }
 
   @Post('items')
@@ -49,6 +54,31 @@ export class CatalogController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createItemDto: CreateItemDto,
   ) {
-    return this.catalogService.createItem(currentUser.id, createItemDto);
+    return this.productosServiciosService.createItem(
+      currentUser.id,
+      createItemDto,
+    );
+  }
+
+  @Patch('items/:itemId')
+  updateItem(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+    @Body() updateItemDto: UpdateItemDto,
+  ) {
+    return this.productosServiciosService.updateItem(
+      currentUser.id,
+      itemId,
+      updateItemDto,
+    );
+  }
+
+  @Delete('items/:itemId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteItem(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+  ): Promise<void> {
+    await this.productosServiciosService.deleteItem(currentUser.id, itemId);
   }
 }
