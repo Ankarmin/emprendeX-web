@@ -28,6 +28,7 @@ import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from './entities/user.entity';
 import {
   AVAILABLE_MODULE_IDS,
+  DEFAULT_ENABLED_MODULE_IDS,
   DEFAULT_CATEGORY_SEEDS,
   DEFAULT_UNIT_SEEDS,
 } from './users.constants';
@@ -280,7 +281,7 @@ export class UsersService {
         );
         await this.syncBusinessModulesForBusiness(
           savedBusiness.businessId,
-          [],
+          DEFAULT_ENABLED_MODULE_IDS,
           manager,
         );
 
@@ -334,7 +335,9 @@ export class UsersService {
         );
         await this.syncBusinessModulesForBusiness(
           existingBusiness.businessId,
-          enabledModuleIds,
+          enabledModuleIds.length > 0
+            ? enabledModuleIds
+            : DEFAULT_ENABLED_MODULE_IDS,
           manager,
         );
         return;
@@ -354,7 +357,7 @@ export class UsersService {
       );
       await this.syncBusinessModulesForBusiness(
         savedBusiness.businessId,
-        [],
+        DEFAULT_ENABLED_MODULE_IDS,
         manager,
       );
     });
@@ -425,6 +428,34 @@ export class UsersService {
     );
 
     return !hasBusinessProfile || user.enabledModuleIds.length === 0;
+  }
+
+  async ensureDefaultModulesForUser(
+    userId: string,
+  ): Promise<UserSessionState | null> {
+    const user = await this.usersRepository.findOne({ where: { userId } });
+
+    if (!user) {
+      return null;
+    }
+
+    const business = await this.findPrimaryBusinessByUserId(userId);
+
+    if (!business) {
+      throw new BadRequestException(
+        'Business profile must be configured first',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.syncBusinessModulesForBusiness(
+        business.businessId,
+        DEFAULT_ENABLED_MODULE_IDS,
+        manager,
+      );
+    });
+
+    return this.loadSessionState(userId);
   }
 
   async ensureProductosServiciosDefaultsForAllBusinesses(): Promise<void> {

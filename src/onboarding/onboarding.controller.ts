@@ -2,7 +2,6 @@ import { Body, Controller, Patch, Put, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { UpdateOnboardingModulesDto } from './dto/update-onboarding-modules.dto';
 import { UpdateOnboardingSetupDto } from './dto/update-onboarding-setup.dto';
 import { OnboardingService } from './onboarding.service';
 
@@ -23,13 +22,7 @@ export class OnboardingController {
   }
 
   @Put('modules')
-  completeModules(
-    @CurrentUser() currentUser: AuthenticatedUser,
-    @Body() updateOnboardingModulesDto: UpdateOnboardingModulesDto,
-  ) {
-    return this.onboardingService.completeModules(
-      currentUser.id,
-      updateOnboardingModulesDto,
-    );
+  completeModules(@CurrentUser() currentUser: AuthenticatedUser) {
+    return this.onboardingService.completeModules(currentUser.id);
   }
 }

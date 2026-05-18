@@ -33,6 +33,12 @@ export const MODULE_SEEDS: Array<{
   { moduleName: 'notificaciones', moduleType: ModuleType.Premium },
 ];
 
+export const DEFAULT_ENABLED_MODULE_IDS: Array<
+  (typeof AVAILABLE_MODULE_IDS)[number]
+> = MODULE_SEEDS.filter((module) => module.moduleType === ModuleType.Basic).map(
+  (module) => module.moduleName,
+);
+
 export const DEFAULT_UNIT_SEEDS = [
   { unitName: 'Unidad', abbreviation: 'UND' },
   { unitName: 'Caja', abbreviation: 'CJ' },

@@ -1,7 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthStateResponse } from '../auth/types/auth-state-response.type';
 import { type UserSessionState, UsersService } from '../users/users.service';
-import { UpdateOnboardingModulesDto } from './dto/update-onboarding-modules.dto';
 import { UpdateOnboardingSetupDto } from './dto/update-onboarding-setup.dto';
 
 @Injectable()
@@ -24,14 +23,8 @@ export class OnboardingService {
     return this.buildAuthStateResponse(user);
   }
 
-  async completeModules(
-    userId: string,
-    updateOnboardingModulesDto: UpdateOnboardingModulesDto,
-  ): Promise<AuthStateResponse> {
-    const user = await this.usersService.completeOnboardingModules(
-      userId,
-      updateOnboardingModulesDto.selectedModuleIds,
-    );
+  async completeModules(userId: string): Promise<AuthStateResponse> {
+    const user = await this.usersService.ensureDefaultModulesForUser(userId);
 
     if (!user) {
       throw new UnauthorizedException('Session is no longer valid');
