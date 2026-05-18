@@ -25,6 +25,9 @@ describe('AppModule (e2e)', () => {
     jest.doMock('../src/auth/auth.module', () => ({
       AuthModule: createEmptyModule(),
     }));
+    jest.doMock('../src/catalog/catalog.module', () => ({
+      CatalogModule: createEmptyModule(),
+    }));
     jest.doMock('../src/onboarding/onboarding.module', () => ({
       OnboardingModule: createEmptyModule(),
     }));
