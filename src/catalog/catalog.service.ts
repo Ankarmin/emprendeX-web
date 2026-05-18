@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
 import { CategoryEntity } from './entities/category.entity';
@@ -20,6 +25,7 @@ import { BusinessModuleStatus, ItemClass } from '../database/database.enums';
 
 type ProductosServiciosItemResponse = {
   id: string;
+  referenceId: string;
   itemClass: ItemClass;
   name: string;
   description: string | null;
@@ -264,6 +270,11 @@ export class ProductosServiciosService {
     const savedProduct = await this.dataSource.transaction(async (manager) => {
       const itemsRepository = manager.getRepository(ItemEntity);
       const productsRepository = manager.getRepository(ProductEntity);
+      const referenceId = await this.generateNextReferenceId(
+        businessId,
+        ItemClass.Product,
+        manager,
+      );
 
       const item = itemsRepository.create({
         itemClass: ItemClass.Product,
@@ -278,6 +289,7 @@ export class ProductosServiciosService {
         itemId: savedItem.itemId,
         unitId: unit.unitId,
         stock: createItemDto.stock ?? 1,
+        referenceId,
       });
 
       const persistedProduct = await productsRepository.save(product);
@@ -316,6 +328,11 @@ export class ProductosServiciosService {
       const servicesRepository = manager.getRepository(
         ProductosServiciosEntity,
       );
+      const referenceId = await this.generateNextReferenceId(
+        businessId,
+        ItemClass.Service,
+        manager,
+      );
 
       const item = itemsRepository.create({
         itemClass: ItemClass.Service,
@@ -329,6 +346,7 @@ export class ProductosServiciosService {
       const service = servicesRepository.create({
         itemId: savedItem.itemId,
         categoryId: category.categoryId,
+        referenceId,
       });
 
       const persistedService = await servicesRepository.save(service);
@@ -538,6 +556,7 @@ export class ProductosServiciosService {
   ): ProductosServiciosItemResponse {
     return {
       id: product.item.itemId,
+      referenceId: product.referenceId,
       itemClass: product.item.itemClass,
       name: product.item.name,
       description: product.item.description,
@@ -562,6 +581,7 @@ export class ProductosServiciosService {
   ): ProductosServiciosItemResponse {
     return {
       id: service.item.itemId,
+      referenceId: service.referenceId,
       itemClass: service.item.itemClass,
       name: service.item.name,
       description: service.item.description,
@@ -577,6 +597,54 @@ export class ProductosServiciosService {
         },
       },
     };
+  }
+
+  private async generateNextReferenceId(
+    businessId: string,
+    itemClass: ItemClass,
+    manager: EntityManager,
+  ): Promise<string> {
+    type ReferenceSequenceRow = {
+      lastReferenceNumber: number | string | null;
+    };
+
+    const prefix = itemClass === ItemClass.Product ? 'PRD' : 'SRV';
+
+    // Serialize number generation per business and item class.
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `${businessId}:${prefix}`,
+    ]);
+
+    const [row] =
+      itemClass === ItemClass.Product
+        ? await manager.query<ReferenceSequenceRow[]>(
+            `
+              SELECT COALESCE(
+                MAX(CAST(SUBSTRING(p.reference_id FROM 'PRD-(\\d+)$') AS INTEGER)),
+                0
+              ) AS "lastReferenceNumber"
+              FROM "products" p
+              INNER JOIN "units" u ON u."unit_id" = p."unit_id"
+              WHERE u."business_id" = $1
+            `,
+            [businessId],
+          )
+        : await manager.query<ReferenceSequenceRow[]>(
+            `
+              SELECT COALESCE(
+                MAX(CAST(SUBSTRING(s.reference_id FROM 'SRV-(\\d+)$') AS INTEGER)),
+                0
+              ) AS "lastReferenceNumber"
+              FROM "services" s
+              INNER JOIN "categories" c ON c."category_id" = s."category_id"
+              WHERE c."business_id" = $1
+            `,
+            [businessId],
+          );
+
+    const nextReferenceNumber = Number(row?.lastReferenceNumber ?? 0) + 1;
+
+    return `${prefix}-${nextReferenceNumber}`;
   }
 
   private isUniqueViolation(error: {

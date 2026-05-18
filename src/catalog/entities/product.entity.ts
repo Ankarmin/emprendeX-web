@@ -30,4 +30,7 @@ export class ProductEntity {
 
   @Column({ type: 'integer', name: 'stock', default: 1 })
   stock!: number;
+
+  @Column({ type: 'varchar', name: 'reference_id', length: 100 })
+  referenceId!: string;
 }

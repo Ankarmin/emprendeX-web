@@ -15,26 +15,25 @@ export class UsersBootstrapService implements OnModuleInit {
       businessName: 'Dulce Taller',
       businessCategory: 'Pastelería personalizada',
       planName: 'Basic',
-      planPeriod: 'Monthly',
-      enabledModuleIds: ['operaciones', 'clientes', 'pagos'],
+      enabledModuleIds: ['operaciones', 'clientes', 'contabilidad'],
     });
 
     await this.usersService.ensureDemoAccount({
       email: 'premium@emprendex.app',
-      password: 'Premium123!',
+      password: 'Pro123!',
       firstNames: 'Diego',
       lastNames: 'Mendoza',
       phone: '900333444',
       businessName: 'Taller Norte',
       businessCategory: 'Tecnología / Electrónica',
-      planName: 'Premium',
+      planName: 'Pro',
       planPeriod: 'Monthly',
       enabledModuleIds: [
         'operaciones',
         'clientes',
         'productos',
         'cotizaciones',
-        'pagos',
+        'contabilidad',
         'reportes',
       ],
     });

@@ -1,7 +1,6 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModuleAsyncOptions } from '@nestjs/typeorm';
 import { databaseEntities } from './database.entities';
-import { AddProductosServiciosCore20260517020000 } from './migrations/20260517020000-add-catalog-core';
 import { InitializePlatformSchema20260517000000 } from './migrations/20260517000000-initialize-platform-schema';
 
 function isSslEnabled(configService: ConfigService): boolean {
@@ -15,10 +14,7 @@ export const typeOrmModuleOptions: TypeOrmModuleAsyncOptions = {
     type: 'postgres',
     url: configService.getOrThrow<string>('DATABASE_PUBLIC_URL'),
     entities: databaseEntities,
-    migrations: [
-      InitializePlatformSchema20260517000000,
-      AddProductosServiciosCore20260517020000,
-    ],
+    migrations: [InitializePlatformSchema20260517000000],
     migrationsRun: true,
     synchronize: false,
     ssl: isSslEnabled(configService)

@@ -5,8 +5,10 @@ export const AVAILABLE_MODULE_IDS = [
   'clientes',
   'productos',
   'cotizaciones',
-  'pagos',
+  'contabilidad',
+  'calendario',
   'reportes',
+  'notificaciones',
 ] as const;
 
 export const ONBOARDING_MODULE_IDS = [
@@ -14,7 +16,7 @@ export const ONBOARDING_MODULE_IDS = [
   'clientes',
   'productos',
   'cotizaciones',
-  'pagos',
+  'contabilidad',
 ] as const;
 
 export const MODULE_SEEDS: Array<{
@@ -25,8 +27,10 @@ export const MODULE_SEEDS: Array<{
   { moduleName: 'clientes', moduleType: ModuleType.Basic },
   { moduleName: 'productos', moduleType: ModuleType.Basic },
   { moduleName: 'cotizaciones', moduleType: ModuleType.Basic },
-  { moduleName: 'pagos', moduleType: ModuleType.Basic },
+  { moduleName: 'contabilidad', moduleType: ModuleType.Basic },
+  { moduleName: 'calendario', moduleType: ModuleType.Premium },
   { moduleName: 'reportes', moduleType: ModuleType.Premium },
+  { moduleName: 'notificaciones', moduleType: ModuleType.Premium },
 ];
 
 export const DEFAULT_UNIT_SEEDS = [

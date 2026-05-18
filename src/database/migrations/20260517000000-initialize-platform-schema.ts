@@ -53,6 +53,9 @@ export class InitializePlatformSchema20260517000000 implements MigrationInterfac
       CREATE TYPE "module_type_enum" AS ENUM ('Basic', 'Premium')
     `);
     await queryRunner.query(`
+      CREATE TYPE "item_class_enum" AS ENUM ('Product', 'Service')
+    `);
+    await queryRunner.query(`
       CREATE TYPE "business_module_status_enum" AS ENUM ('Enabled', 'Blocked')
     `);
 
@@ -144,39 +147,96 @@ export class InitializePlatformSchema20260517000000 implements MigrationInterfac
     `);
 
     await queryRunner.query(`
+      CREATE TABLE "units" (
+        "unit_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "business_id" UUID NOT NULL REFERENCES "businesses"("business_id"),
+        "unit_name" VARCHAR(100) NOT NULL,
+        "abbreviation" VARCHAR(10) NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE "categories" (
+        "category_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "business_id" UUID NOT NULL REFERENCES "businesses"("business_id"),
+        "category_name" VARCHAR(100) NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE "items" (
+        "item_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "item_class" "item_class_enum" NOT NULL,
+        "name" VARCHAR(100) NOT NULL,
+        "description" TEXT,
+        "sku" VARCHAR(100) UNIQUE,
+        "price" NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+        "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE "products" (
+        "product_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "item_id" UUID NOT NULL UNIQUE REFERENCES "items"("item_id"),
+        "unit_id" UUID NOT NULL REFERENCES "units"("unit_id"),
+        "stock" INTEGER NOT NULL DEFAULT 1,
+        "reference_id" VARCHAR(100) NOT NULL
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE "services" (
+        "service_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "item_id" UUID NOT NULL UNIQUE REFERENCES "items"("item_id"),
+        "category_id" UUID NOT NULL REFERENCES "categories"("category_id"),
+        "reference_id" VARCHAR(100) NOT NULL
+      )
+    `);
+
+    await queryRunner.query(`
       INSERT INTO "modules" ("module_name", "module_type")
       VALUES
         ('operaciones', 'Basic'),
         ('clientes', 'Basic'),
         ('productos', 'Basic'),
         ('cotizaciones', 'Basic'),
-        ('pagos', 'Basic'),
-        ('reportes', 'Premium')
+        ('contabilidad', 'Basic'),
+        ('calendario', 'Premium'),
+        ('reportes', 'Premium'),
+        ('notificaciones', 'Premium')
     `);
 
     await queryRunner.query(`
       INSERT INTO "plans" ("name", "description", "status")
       VALUES
         ('Basic', 'Acceso a los módulos esenciales del negocio', 'Enabled'),
-        ('Premium', 'Acceso ampliado a módulos avanzados y premium', 'Enabled')
+        ('Pro', 'Acceso ampliado a módulos avanzados y premium', 'Enabled')
     `);
 
     await queryRunner.query(`
       INSERT INTO "plan_prices" ("plan_id", "period", "status", "price")
-      SELECT "plan_id", 'Monthly', TRUE,
-        CASE WHEN "name" = 'Basic' THEN 29.90 ELSE 79.90 END
+      SELECT "plan_id", 'Monthly', TRUE, 29.90
       FROM "plans"
+      WHERE "name" = 'Pro'
     `);
 
     await queryRunner.query(`
       INSERT INTO "plan_prices" ("plan_id", "period", "status", "price")
-      SELECT "plan_id", 'Yearly', TRUE,
-        CASE WHEN "name" = 'Basic' THEN 299.90 ELSE 799.90 END
+      SELECT "plan_id", 'Yearly', TRUE, 299.00
       FROM "plans"
+      WHERE "name" = 'Pro'
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP TABLE IF EXISTS "services" CASCADE');
+    await queryRunner.query('DROP TABLE IF EXISTS "products" CASCADE');
+    await queryRunner.query('DROP TABLE IF EXISTS "items" CASCADE');
+    await queryRunner.query('DROP TABLE IF EXISTS "categories" CASCADE');
+    await queryRunner.query('DROP TABLE IF EXISTS "units" CASCADE');
     await queryRunner.query('DROP TABLE IF EXISTS "business_modules" CASCADE');
     await queryRunner.query('DROP TABLE IF EXISTS "customers" CASCADE');
     await queryRunner.query('DROP TABLE IF EXISTS "businesses" CASCADE');
@@ -188,6 +248,7 @@ export class InitializePlatformSchema20260517000000 implements MigrationInterfac
     await queryRunner.query(
       'DROP TYPE IF EXISTS "business_module_status_enum" CASCADE',
     );
+    await queryRunner.query('DROP TYPE IF EXISTS "item_class_enum" CASCADE');
     await queryRunner.query('DROP TYPE IF EXISTS "module_type_enum" CASCADE');
     await queryRunner.query('DROP TYPE IF EXISTS "plan_period_enum" CASCADE');
     await queryRunner.query('DROP TYPE IF EXISTS "plan_status_enum" CASCADE');

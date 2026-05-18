@@ -45,10 +45,17 @@ type SeedAccountInput = {
   phone: string;
   businessName: string;
   businessCategory: string;
-  planName: 'Basic' | 'Premium';
-  planPeriod: 'Monthly' | 'Yearly';
   enabledModuleIds: (typeof AVAILABLE_MODULE_IDS)[number][];
-};
+} & (
+  | {
+      planName: 'Basic';
+      planPeriod?: never;
+    }
+  | {
+      planName: 'Pro';
+      planPeriod: 'Monthly' | 'Yearly';
+    }
+);
 
 type AuthUserRecord = {
   id: string;
@@ -65,6 +72,8 @@ type CreateUserInput = {
   businessName: string;
   businessCategory: string;
 };
+
+type AvailableModuleId = (typeof AVAILABLE_MODULE_IDS)[number];
 
 type UpdateBusinessProfileInput = {
   businessName: string;
@@ -269,6 +278,11 @@ export class UsersService {
           savedBusiness.businessId,
           manager,
         );
+        await this.syncBusinessModulesForBusiness(
+          savedBusiness.businessId,
+          [],
+          manager,
+        );
 
         return savedUser;
       });
@@ -314,6 +328,15 @@ export class UsersService {
           existingBusiness.businessId,
           manager,
         );
+        const enabledModuleIds = await this.loadEnabledModuleIds(
+          existingBusiness.businessId,
+          manager.getRepository(BusinessModule),
+        );
+        await this.syncBusinessModulesForBusiness(
+          existingBusiness.businessId,
+          enabledModuleIds,
+          manager,
+        );
         return;
       }
 
@@ -329,6 +352,11 @@ export class UsersService {
         savedBusiness.businessId,
         manager,
       );
+      await this.syncBusinessModulesForBusiness(
+        savedBusiness.businessId,
+        [],
+        manager,
+      );
     });
 
     return this.loadSessionState(userId);
@@ -336,7 +364,7 @@ export class UsersService {
 
   async completeOnboardingModules(
     userId: string,
-    enabledModuleIds: (typeof AVAILABLE_MODULE_IDS)[number][],
+    enabledModuleIds: AvailableModuleId[],
   ): Promise<UserSessionState | null> {
     const user = await this.usersRepository.findOne({ where: { userId } });
 
@@ -366,21 +394,11 @@ export class UsersService {
     }
 
     await this.dataSource.transaction(async (manager) => {
-      const businessModulesRepository = manager.getRepository(BusinessModule);
-
-      await businessModulesRepository.delete({
-        businessId: business.businessId,
-      });
-
-      const businessModules = modules.map((module) =>
-        businessModulesRepository.create({
-          businessId: business.businessId,
-          moduleId: module.moduleId,
-          status: BusinessModuleStatus.Enabled,
-        }),
+      await this.syncBusinessModulesForBusiness(
+        business.businessId,
+        modules.map((module) => module.moduleName as AvailableModuleId),
+        manager,
       );
-
-      await businessModulesRepository.save(businessModules);
     });
 
     return this.loadSessionState(userId);
@@ -548,10 +566,42 @@ export class UsersService {
     }
   }
 
+  private async syncBusinessModulesForBusiness(
+    businessId: string,
+    enabledModuleIds: AvailableModuleId[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    const modulesRepository =
+      manager?.getRepository(FeatureModuleEntity) ?? this.modulesRepository;
+    const businessModulesRepository =
+      manager?.getRepository(BusinessModule) ?? this.businessModulesRepository;
+
+    const availableModules = await modulesRepository.find();
+    const enabledModuleIdSet = new Set(enabledModuleIds);
+
+    await businessModulesRepository.delete({ businessId });
+
+    if (availableModules.length === 0) {
+      return;
+    }
+
+    const businessModules = availableModules.map((module) =>
+      businessModulesRepository.create({
+        businessId,
+        moduleId: module.moduleId,
+        status: enabledModuleIdSet.has(module.moduleName as AvailableModuleId)
+          ? BusinessModuleStatus.Enabled
+          : BusinessModuleStatus.Blocked,
+      }),
+    );
+
+    await businessModulesRepository.save(businessModules);
+  }
+
   private async loadEnabledModuleIds(
     businessId: string,
     businessModulesRepository: Repository<BusinessModule>,
-  ): Promise<string[]> {
+  ): Promise<AvailableModuleId[]> {
     const businessModules = await businessModulesRepository.find({
       where: {
         businessId,
@@ -564,10 +614,8 @@ export class UsersService {
 
     return businessModules
       .map((businessModule) => businessModule.module.moduleName)
-      .filter((moduleId): moduleId is (typeof AVAILABLE_MODULE_IDS)[number] =>
-        AVAILABLE_MODULE_IDS.includes(
-          moduleId as (typeof AVAILABLE_MODULE_IDS)[number],
-        ),
+      .filter((moduleId): moduleId is AvailableModuleId =>
+        AVAILABLE_MODULE_IDS.includes(moduleId as AvailableModuleId),
       );
   }
 
@@ -605,7 +653,7 @@ export class UsersService {
       endsAt: subscription.endDate.toISOString(),
       isActive: subscription.status,
       isPremium:
-        subscription.planPrice.plan.name.trim().toLowerCase() === 'premium',
+        subscription.planPrice.plan.name.trim().toLowerCase() === 'pro',
     };
   }
 
@@ -613,12 +661,21 @@ export class UsersService {
     userId: string,
     planSelection: Pick<SeedAccountInput, 'planName' | 'planPeriod'>,
   ): Promise<void> {
+    if (planSelection.planName === 'Basic') {
+      await this.subscriptionsRepository.delete({ userId });
+      return;
+    }
+
+    const { planPeriod } = planSelection;
+
+    if (!planPeriod) {
+      throw new Error('Plan period is required for Pro subscriptions');
+    }
+
     const planPrice = await this.planPricesRepository.findOne({
       where: {
         period:
-          planSelection.planPeriod === 'Yearly'
-            ? PlanPeriod.Yearly
-            : PlanPeriod.Monthly,
+          planPeriod === 'Yearly' ? PlanPeriod.Yearly : PlanPeriod.Monthly,
         plan: {
           name: planSelection.planName,
         },
@@ -643,7 +700,7 @@ export class UsersService {
         planPriceId: planPrice.planPriceId,
         userId,
         startDate: new Date(),
-        endDate: this.buildSubscriptionEndDate(planSelection.planPeriod),
+        endDate: this.buildSubscriptionEndDate(planPeriod),
         status: true,
       });
 
