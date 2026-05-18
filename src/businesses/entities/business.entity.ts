@@ -10,6 +10,8 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { BusinessModule } from './business-module.entity';
 import { Customer } from '../../customers/entities/customer.entity';
+import { CategoryEntity } from '../../catalog/entities/category.entity';
+import { UnitEntity } from '../../catalog/entities/unit.entity';
 
 @Entity({ name: 'businesses' })
 export class Business {
@@ -37,4 +39,10 @@ export class Business {
 
   @OneToMany(() => BusinessModule, (businessModule) => businessModule.business)
   businessModules!: BusinessModule[];
+
+  @OneToMany(() => UnitEntity, (unit) => unit.business)
+  units!: UnitEntity[];
+
+  @OneToMany(() => CategoryEntity, (category) => category.business)
+  categories!: CategoryEntity[];
 }

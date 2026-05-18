@@ -23,3 +23,8 @@ export enum BusinessModuleStatus {
   Enabled = 'Enabled',
   Blocked = 'Blocked',
 }
+
+export enum ItemClass {
+  Product = 'Product',
+  Service = 'Service',
+}
