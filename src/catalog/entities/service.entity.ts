@@ -30,6 +30,6 @@ export class ProductosServiciosEntity {
   @JoinColumn({ name: 'category_id', referencedColumnName: 'categoryId' })
   category!: CategoryEntity;
 
-  @Column({ type: 'varchar', name: 'reference_id', length: 100 })
-  referenceId!: string;
+  @Column({ type: 'varchar', name: 'reference_code', length: 100 })
+  referenceCode!: string;
 }

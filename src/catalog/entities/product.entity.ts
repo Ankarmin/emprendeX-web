@@ -31,6 +31,6 @@ export class ProductEntity {
   @Column({ type: 'integer', name: 'stock', default: 1 })
   stock!: number;
 
-  @Column({ type: 'varchar', name: 'reference_id', length: 100 })
-  referenceId!: string;
+  @Column({ type: 'varchar', name: 'reference_code', length: 100 })
+  referenceCode!: string;
 }
