@@ -16,7 +16,7 @@ export class OrderEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'order_id' })
   orderId!: string;
 
-  @Column({ type: 'uuid', name: 'quotation_id' })
+  @Column({ type: 'uuid', name: 'quotation_id', unique: true })
   quotationId!: string;
 
   @ManyToOne(() => QuotationEntity, (quotation) => quotation.orders, {

@@ -5,12 +5,14 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  Unique,
 } from 'typeorm';
 import { BusinessModuleStatus } from '../../database/database.enums';
 import { Business } from './business.entity';
 import { FeatureModuleEntity } from '../../modules/entities/feature-module.entity';
 
 @Entity({ name: 'business_modules' })
+@Unique('uq_business_module', ['businessId', 'moduleId'])
 export class BusinessModule {
   @PrimaryGeneratedColumn('uuid', { name: 'business_module_id' })
   businessModuleId!: string;
