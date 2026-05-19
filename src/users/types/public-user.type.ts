@@ -10,7 +10,7 @@ export type PublicUser = {
   activeSubscription: {
     id: string;
     planName: string;
-    period: string;
+    period: 'Monthly' | 'Yearly';
     price: string;
     endsAt: string;
     isActive: boolean;

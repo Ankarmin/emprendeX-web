@@ -2,14 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { ItemClass } from '../../database/database.enums';
 import { ProductEntity } from './product.entity';
 import { ProductosServiciosEntity } from './service.entity';
-import { QuotationDetailEntity } from '../../quotations/entities/quotation-detail.entity';
 
 @Entity({ name: 'items' })
 export class ItemEntity {
@@ -56,10 +54,4 @@ export class ItemEntity {
 
   @OneToOne(() => ProductosServiciosEntity, (service) => service.item)
   service!: ProductosServiciosEntity | null;
-
-  @OneToMany(
-    () => QuotationDetailEntity,
-    (quotationDetail) => quotationDetail.item,
-  )
-  quotationDetails!: QuotationDetailEntity[];
 }

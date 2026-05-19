@@ -4,11 +4,9 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Business } from '../../businesses/entities/business.entity';
-import { QuotationEntity } from '../../quotations/entities/quotation.entity';
 
 @Entity({ name: 'customers' })
 export class Customer {
@@ -41,7 +39,4 @@ export class Customer {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;
-
-  @OneToMany(() => QuotationEntity, (quotation) => quotation.customer)
-  quotations!: QuotationEntity[];
 }

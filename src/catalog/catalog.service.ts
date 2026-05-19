@@ -25,7 +25,7 @@ import { BusinessModuleStatus, ItemClass } from '../database/database.enums';
 
 type ProductosServiciosItemResponse = {
   id: string;
-  referenceCode: string;
+  referenceId: string;
   itemClass: ItemClass;
   name: string;
   description: string | null;
@@ -270,7 +270,7 @@ export class ProductosServiciosService {
     const savedProduct = await this.dataSource.transaction(async (manager) => {
       const itemsRepository = manager.getRepository(ItemEntity);
       const productsRepository = manager.getRepository(ProductEntity);
-      const referenceCode = await this.generateNextReferenceCode(
+      const referenceId = await this.generateNextReferenceId(
         businessId,
         ItemClass.Product,
         manager,
@@ -289,7 +289,7 @@ export class ProductosServiciosService {
         itemId: savedItem.itemId,
         unitId: unit.unitId,
         stock: createItemDto.stock ?? 1,
-        referenceCode,
+        referenceId,
       });
 
       const persistedProduct = await productsRepository.save(product);
@@ -328,7 +328,7 @@ export class ProductosServiciosService {
       const servicesRepository = manager.getRepository(
         ProductosServiciosEntity,
       );
-      const referenceCode = await this.generateNextReferenceCode(
+      const referenceId = await this.generateNextReferenceId(
         businessId,
         ItemClass.Service,
         manager,
@@ -346,7 +346,7 @@ export class ProductosServiciosService {
       const service = servicesRepository.create({
         itemId: savedItem.itemId,
         categoryId: category.categoryId,
-        referenceCode,
+        referenceId,
       });
 
       const persistedService = await servicesRepository.save(service);
@@ -362,6 +362,7 @@ export class ProductosServiciosService {
   private async getBusinessOrThrow(userId: string): Promise<Business> {
     const business = await this.businessesRepository.findOne({
       where: { userId },
+      order: { createdAt: 'ASC' },
     });
 
     if (!business) {
@@ -555,7 +556,7 @@ export class ProductosServiciosService {
   ): ProductosServiciosItemResponse {
     return {
       id: product.item.itemId,
-      referenceCode: product.referenceCode,
+      referenceId: product.referenceId,
       itemClass: product.item.itemClass,
       name: product.item.name,
       description: product.item.description,
@@ -580,7 +581,7 @@ export class ProductosServiciosService {
   ): ProductosServiciosItemResponse {
     return {
       id: service.item.itemId,
-      referenceCode: service.referenceCode,
+      referenceId: service.referenceId,
       itemClass: service.item.itemClass,
       name: service.item.name,
       description: service.item.description,
@@ -598,7 +599,7 @@ export class ProductosServiciosService {
     };
   }
 
-  private async generateNextReferenceCode(
+  private async generateNextReferenceId(
     businessId: string,
     itemClass: ItemClass,
     manager: EntityManager,
@@ -619,7 +620,7 @@ export class ProductosServiciosService {
         ? await manager.query<ReferenceSequenceRow[]>(
             `
               SELECT COALESCE(
-                MAX(CAST(SUBSTRING(p.reference_code FROM 'PRD-(\\d+)$') AS INTEGER)),
+                MAX(CAST(SUBSTRING(p.reference_id FROM 'PRD-(\\d+)$') AS INTEGER)),
                 0
               ) AS "lastReferenceNumber"
               FROM "products" p
@@ -631,7 +632,7 @@ export class ProductosServiciosService {
         : await manager.query<ReferenceSequenceRow[]>(
             `
               SELECT COALESCE(
-                MAX(CAST(SUBSTRING(s.reference_code FROM 'SRV-(\\d+)$') AS INTEGER)),
+                MAX(CAST(SUBSTRING(s.reference_id FROM 'SRV-(\\d+)$') AS INTEGER)),
                 0
               ) AS "lastReferenceNumber"
               FROM "services" s

@@ -8,24 +8,55 @@ import { hash } from 'bcrypt';
 import {
   DataSource,
   EntityManager,
+  In,
   QueryFailedError,
   Repository,
 } from 'typeorm';
 import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
+import { CategoryEntity } from '../catalog/entities/category.entity';
+import { UnitEntity } from '../catalog/entities/unit.entity';
 import {
   BusinessModuleStatus,
-  SubscriptionStatus,
+  PlanPeriod,
   UserStatus,
 } from '../database/database.enums';
 import { FeatureModuleEntity } from '../modules/entities/feature-module.entity';
+import { PlanPrice } from '../plans/entities/plan-price.entity';
 import { PublicUser } from './types/public-user.type';
 import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from './entities/user.entity';
 import {
   AVAILABLE_MODULE_IDS,
   DEFAULT_ENABLED_MODULE_IDS,
+  DEFAULT_CATEGORY_SEEDS,
+  DEFAULT_UNIT_SEEDS,
 } from './users.constants';
+
+type SeedUserInput = {
+  email: string;
+  password: string;
+};
+
+type SeedAccountInput = {
+  email: string;
+  password: string;
+  firstNames: string;
+  lastNames: string;
+  phone: string;
+  businessName: string;
+  businessCategory: string;
+  enabledModuleIds: (typeof AVAILABLE_MODULE_IDS)[number][];
+} & (
+  | {
+      planName: 'Basic';
+      planPeriod?: never;
+    }
+  | {
+      planName: 'Pro';
+      planPeriod: 'Monthly' | 'Yearly';
+    }
+);
 
 type AuthUserRecord = {
   id: string;
@@ -61,7 +92,7 @@ export type UserSessionState = {
   activeSubscription: {
     id: string;
     planName: string;
-    period: string;
+    period: 'Monthly' | 'Yearly';
     price: string;
     endsAt: string;
     isActive: boolean;
@@ -86,8 +117,14 @@ export class UsersService {
     private readonly businessModulesRepository: Repository<BusinessModule>,
     @InjectRepository(FeatureModuleEntity)
     private readonly modulesRepository: Repository<FeatureModuleEntity>,
+    @InjectRepository(UnitEntity)
+    private readonly unitsRepository: Repository<UnitEntity>,
+    @InjectRepository(CategoryEntity)
+    private readonly categoriesRepository: Repository<CategoryEntity>,
     @InjectRepository(Subscription)
     private readonly subscriptionsRepository: Repository<Subscription>,
+    @InjectRepository(PlanPrice)
+    private readonly planPricesRepository: Repository<PlanPrice>,
   ) {}
 
   async findById(id: string): Promise<UserSessionState | null> {
@@ -113,6 +150,93 @@ export class UsersService {
       email: user.email,
       passwordHash: user.passwordHash,
     };
+  }
+
+  async ensureSeedUser({ email, password }: SeedUserInput): Promise<void> {
+    const existingUser = await this.usersRepository.findOne({
+      where: { email: this.normalizeEmail(email) },
+      select: { userId: true },
+    });
+
+    if (existingUser) {
+      return;
+    }
+
+    await this.create({
+      firstNames: 'Admin',
+      lastNames: 'EmprendeX',
+      phone: '999999999',
+      email,
+      password,
+      businessName: 'Negocio Demo',
+      businessCategory: 'General',
+    });
+  }
+
+  async ensureDemoAccount({
+    email,
+    password,
+    firstNames,
+    lastNames,
+    phone,
+    businessName,
+    businessCategory,
+    planName,
+    planPeriod,
+    enabledModuleIds,
+  }: SeedAccountInput): Promise<void> {
+    const normalizedEmail = this.normalizeEmail(email);
+    const existingUser = await this.usersRepository.findOne({
+      where: { email: normalizedEmail },
+      select: { userId: true },
+    });
+
+    if (existingUser) {
+      await this.dataSource.transaction(async (manager) => {
+        const usersRepository = manager.getRepository(User);
+
+        await usersRepository.update(
+          { userId: existingUser.userId },
+          {
+            firstNames: firstNames.trim(),
+            lastNames: lastNames.trim(),
+            phone: phone.trim(),
+            status: UserStatus.Active,
+          },
+        );
+      });
+
+      await this.updateBusinessProfile(existingUser.userId, {
+        businessName,
+        businessCategory,
+      });
+      await this.ensureSubscriptionForUser(existingUser.userId, {
+        planName,
+        planPeriod,
+      });
+      await this.completeOnboardingModules(
+        existingUser.userId,
+        enabledModuleIds,
+      );
+      return;
+    }
+
+    const createdUser = await this.create({
+      firstNames,
+      lastNames,
+      phone,
+      email: normalizedEmail,
+      password,
+      businessName,
+      businessCategory,
+    });
+
+    await this.ensureSubscriptionForUser(createdUser.id, {
+      planName,
+      planPeriod,
+    });
+
+    await this.completeOnboardingModules(createdUser.id, enabledModuleIds);
   }
 
   async create({
@@ -146,10 +270,15 @@ export class UsersService {
         const business = businessesRepository.create({
           userId: savedUser.userId,
           businessName: businessName.trim(),
-          businessCategory: businessCategory.trim(),
+          industry: businessCategory.trim(),
         });
 
         const savedBusiness = await businessesRepository.save(business);
+
+        await this.ensureProductosServiciosDefaultsForBusiness(
+          savedBusiness.businessId,
+          manager,
+        );
         await this.syncBusinessModulesForBusiness(
           savedBusiness.businessId,
           DEFAULT_ENABLED_MODULE_IDS,
@@ -189,12 +318,17 @@ export class UsersService {
       const businessesRepository = manager.getRepository(Business);
       const existingBusiness = await businessesRepository.findOne({
         where: { userId },
+        order: { createdAt: 'ASC' },
       });
 
       if (existingBusiness) {
         existingBusiness.businessName = businessName.trim();
-        existingBusiness.businessCategory = businessCategory.trim();
+        existingBusiness.industry = businessCategory.trim();
         await businessesRepository.save(existingBusiness);
+        await this.ensureProductosServiciosDefaultsForBusiness(
+          existingBusiness.businessId,
+          manager,
+        );
         const enabledModuleIds = await this.loadEnabledModuleIds(
           existingBusiness.businessId,
           manager.getRepository(BusinessModule),
@@ -212,13 +346,60 @@ export class UsersService {
       const business = businessesRepository.create({
         userId,
         businessName: businessName.trim(),
-        businessCategory: businessCategory.trim(),
+        industry: businessCategory.trim(),
       });
 
       const savedBusiness = await businessesRepository.save(business);
+
+      await this.ensureProductosServiciosDefaultsForBusiness(
+        savedBusiness.businessId,
+        manager,
+      );
       await this.syncBusinessModulesForBusiness(
         savedBusiness.businessId,
         DEFAULT_ENABLED_MODULE_IDS,
+        manager,
+      );
+    });
+
+    return this.loadSessionState(userId);
+  }
+
+  async completeOnboardingModules(
+    userId: string,
+    enabledModuleIds: AvailableModuleId[],
+  ): Promise<UserSessionState | null> {
+    const user = await this.usersRepository.findOne({ where: { userId } });
+
+    if (!user) {
+      return null;
+    }
+
+    const business = await this.findPrimaryBusinessByUserId(userId);
+
+    if (!business) {
+      throw new BadRequestException(
+        'Business profile must be configured first',
+      );
+    }
+
+    const uniqueModuleNames = Array.from(new Set(enabledModuleIds));
+    const modules = await this.modulesRepository.find({
+      where: {
+        moduleName: In(uniqueModuleNames),
+      },
+    });
+
+    if (modules.length !== uniqueModuleNames.length) {
+      throw new BadRequestException(
+        'One or more selected modules are not available',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.syncBusinessModulesForBusiness(
+        business.businessId,
+        modules.map((module) => module.moduleName as AvailableModuleId),
         manager,
       );
     });
@@ -277,6 +458,20 @@ export class UsersService {
     return this.loadSessionState(userId);
   }
 
+  async ensureProductosServiciosDefaultsForAllBusinesses(): Promise<void> {
+    const businesses = await this.businessesRepository.find({
+      select: {
+        businessId: true,
+      },
+    });
+
+    for (const business of businesses) {
+      await this.ensureProductosServiciosDefaultsForBusiness(
+        business.businessId,
+      );
+    }
+  }
+
   async findPrimaryBusinessByUserId(userId: string): Promise<Business | null> {
     return this.findPrimaryBusinessByUserIdInternal(userId);
   }
@@ -325,7 +520,7 @@ export class UsersService {
       businessProfile: {
         id: business?.businessId ?? null,
         name: business?.businessName ?? null,
-        category: business?.businessCategory ?? null,
+        category: business?.industry ?? null,
       },
     };
   }
@@ -337,7 +532,69 @@ export class UsersService {
     const businessesRepository =
       manager?.getRepository(Business) ?? this.businessesRepository;
 
-    return businessesRepository.findOne({ where: { userId } });
+    const businesses = await businessesRepository.find({
+      where: { userId },
+      order: { createdAt: 'ASC' },
+      take: 1,
+    });
+
+    return businesses[0] ?? null;
+  }
+
+  private async ensureProductosServiciosDefaultsForBusiness(
+    businessId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const unitsRepository =
+      manager?.getRepository(UnitEntity) ?? this.unitsRepository;
+    const categoriesRepository =
+      manager?.getRepository(CategoryEntity) ?? this.categoriesRepository;
+
+    const existingUnits = await unitsRepository.find({
+      where: { businessId },
+      select: { unitName: true },
+    });
+    const existingUnitNames = new Set(
+      existingUnits.map((unit) => unit.unitName.trim().toLowerCase()),
+    );
+
+    const unitsToCreate = DEFAULT_UNIT_SEEDS.filter(
+      (unit) => !existingUnitNames.has(unit.unitName.trim().toLowerCase()),
+    ).map((unit) =>
+      unitsRepository.create({
+        businessId,
+        unitName: unit.unitName,
+        abbreviation: unit.abbreviation,
+      }),
+    );
+
+    if (unitsToCreate.length > 0) {
+      await unitsRepository.save(unitsToCreate);
+    }
+
+    const existingCategories = await categoriesRepository.find({
+      where: { businessId },
+      select: { categoryName: true },
+    });
+    const existingCategoryNames = new Set(
+      existingCategories.map((category) =>
+        category.categoryName.trim().toLowerCase(),
+      ),
+    );
+
+    const categoriesToCreate = DEFAULT_CATEGORY_SEEDS.filter(
+      (category) =>
+        !existingCategoryNames.has(category.categoryName.trim().toLowerCase()),
+    ).map((category) =>
+      categoriesRepository.create({
+        businessId,
+        categoryName: category.categoryName,
+      }),
+    );
+
+    if (categoriesToCreate.length > 0) {
+      await categoriesRepository.save(categoriesToCreate);
+    }
   }
 
   private async syncBusinessModulesForBusiness(
@@ -403,7 +660,7 @@ export class UsersService {
     const subscription = await subscriptionsRepository.findOne({
       where: {
         userId,
-        status: SubscriptionStatus.Active,
+        status: true,
       },
       relations: {
         planPrice: {
@@ -425,10 +682,73 @@ export class UsersService {
       period: subscription.planPrice.period,
       price: subscription.planPrice.price,
       endsAt: subscription.endDate.toISOString(),
-      isActive: subscription.status === SubscriptionStatus.Active,
+      isActive: subscription.status,
       isPremium:
         subscription.planPrice.plan.name.trim().toLowerCase() === 'pro',
     };
+  }
+
+  private async ensureSubscriptionForUser(
+    userId: string,
+    planSelection: Pick<SeedAccountInput, 'planName' | 'planPeriod'>,
+  ): Promise<void> {
+    if (planSelection.planName === 'Basic') {
+      await this.subscriptionsRepository.delete({ userId });
+      return;
+    }
+
+    const { planPeriod } = planSelection;
+
+    if (!planPeriod) {
+      throw new Error('Plan period is required for Pro subscriptions');
+    }
+
+    const planPrice = await this.planPricesRepository.findOne({
+      where: {
+        period:
+          planPeriod === 'Yearly' ? PlanPeriod.Yearly : PlanPeriod.Monthly,
+        plan: {
+          name: planSelection.planName,
+        },
+      },
+      relations: {
+        plan: true,
+      },
+    });
+
+    if (!planPrice) {
+      throw new Error(
+        `Plan price not found for ${planSelection.planName} ${planSelection.planPeriod}`,
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const subscriptionsRepository = manager.getRepository(Subscription);
+
+      await subscriptionsRepository.delete({ userId });
+
+      const subscription = subscriptionsRepository.create({
+        planPriceId: planPrice.planPriceId,
+        userId,
+        startDate: new Date(),
+        endDate: this.buildSubscriptionEndDate(planPeriod),
+        status: true,
+      });
+
+      await subscriptionsRepository.save(subscription);
+    });
+  }
+
+  private buildSubscriptionEndDate(period: 'Monthly' | 'Yearly'): Date {
+    const date = new Date();
+
+    if (period === 'Yearly') {
+      date.setFullYear(date.getFullYear() + 1);
+      return date;
+    }
+
+    date.setMonth(date.getMonth() + 1);
+    return date;
   }
 
   private normalizeEmail(email: string): string {

@@ -1,5 +1,6 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
@@ -11,7 +12,6 @@ import { BusinessModule } from './business-module.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { CategoryEntity } from '../../catalog/entities/category.entity';
 import { UnitEntity } from '../../catalog/entities/unit.entity';
-import { FinancialCategoryEntity } from '../../financial-categories/entities/financial-category.entity';
 
 @Entity({ name: 'businesses' })
 export class Business {
@@ -28,8 +28,11 @@ export class Business {
   @Column({ type: 'varchar', name: 'business_name', length: 100 })
   businessName!: string;
 
-  @Column({ type: 'varchar', name: 'business_category', length: 100 })
-  businessCategory!: string;
+  @Column({ type: 'varchar', name: 'industry', length: 100 })
+  industry!: string;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  createdAt!: Date;
 
   @OneToMany(() => Customer, (customer) => customer.business)
   customers!: Customer[];
@@ -42,10 +45,4 @@ export class Business {
 
   @OneToMany(() => CategoryEntity, (category) => category.business)
   categories!: CategoryEntity[];
-
-  @OneToMany(
-    () => FinancialCategoryEntity,
-    (financialCategory) => financialCategory.business,
-  )
-  financialCategories!: FinancialCategoryEntity[];
 }

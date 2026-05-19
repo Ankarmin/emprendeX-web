@@ -11,6 +11,14 @@ export const AVAILABLE_MODULE_IDS = [
   'notificaciones',
 ] as const;
 
+export const ONBOARDING_MODULE_IDS = [
+  'operaciones',
+  'clientes',
+  'productos',
+  'cotizaciones',
+  'contabilidad',
+] as const;
+
 export const MODULE_SEEDS: Array<{
   moduleName: (typeof AVAILABLE_MODULE_IDS)[number];
   moduleType: ModuleType;
@@ -30,3 +38,17 @@ export const DEFAULT_ENABLED_MODULE_IDS: Array<
 > = MODULE_SEEDS.filter((module) => module.moduleType === ModuleType.Basic).map(
   (module) => module.moduleName,
 );
+
+export const DEFAULT_UNIT_SEEDS = [
+  { unitName: 'Unidad', abbreviation: 'UND' },
+  { unitName: 'Caja', abbreviation: 'CJ' },
+  { unitName: 'Docena', abbreviation: 'DOC' },
+  { unitName: 'Paquete', abbreviation: 'PAQ' },
+] as const;
+
+export const DEFAULT_CATEGORY_SEEDS = [
+  { categoryName: 'Servicio general' },
+  { categoryName: 'Evento' },
+  { categoryName: 'Asesoría' },
+  { categoryName: 'Diseño' },
+] as const;

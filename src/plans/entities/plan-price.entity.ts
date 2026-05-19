@@ -31,8 +31,8 @@ export class PlanPrice {
   })
   period!: PlanPeriod;
 
-  @Column({ type: 'boolean', name: 'is_active', default: true })
-  isActive!: boolean;
+  @Column({ type: 'boolean', name: 'status', default: true })
+  status!: boolean;
 
   @Column({
     type: 'numeric',
