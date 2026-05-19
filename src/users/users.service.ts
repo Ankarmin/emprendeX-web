@@ -149,12 +149,7 @@ export class UsersService {
           businessCategory: businessCategory.trim(),
         });
 
-        const savedBusiness = await businessesRepository.save(business);
-        await this.syncBusinessModulesForBusiness(
-          savedBusiness.businessId,
-          DEFAULT_ENABLED_MODULE_IDS,
-          manager,
-        );
+        await businessesRepository.save(business);
 
         return savedUser;
       });
@@ -199,13 +194,13 @@ export class UsersService {
           existingBusiness.businessId,
           manager.getRepository(BusinessModule),
         );
-        await this.syncBusinessModulesForBusiness(
-          existingBusiness.businessId,
-          enabledModuleIds.length > 0
-            ? enabledModuleIds
-            : DEFAULT_ENABLED_MODULE_IDS,
-          manager,
-        );
+        if (enabledModuleIds.length > 0) {
+          await this.syncBusinessModulesForBusiness(
+            existingBusiness.businessId,
+            enabledModuleIds,
+            manager,
+          );
+        }
         return;
       }
 
@@ -215,12 +210,7 @@ export class UsersService {
         businessCategory: businessCategory.trim(),
       });
 
-      const savedBusiness = await businessesRepository.save(business);
-      await this.syncBusinessModulesForBusiness(
-        savedBusiness.businessId,
-        DEFAULT_ENABLED_MODULE_IDS,
-        manager,
-      );
+      await businessesRepository.save(business);
     });
 
     return this.loadSessionState(userId);
@@ -363,7 +353,7 @@ export class UsersService {
       businessModulesRepository.create({
         businessId,
         moduleId: module.moduleId,
-        status: enabledModuleIdSet.has(module.moduleName as AvailableModuleId)
+        status: enabledModuleIdSet.has(module.code as AvailableModuleId)
           ? BusinessModuleStatus.Enabled
           : BusinessModuleStatus.Blocked,
       }),
@@ -387,7 +377,7 @@ export class UsersService {
     });
 
     return businessModules
-      .map((businessModule) => businessModule.module.moduleName)
+      .map((businessModule) => businessModule.module.code)
       .filter((moduleId): moduleId is AvailableModuleId =>
         AVAILABLE_MODULE_IDS.includes(moduleId as AvailableModuleId),
       );
