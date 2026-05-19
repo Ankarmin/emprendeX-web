@@ -535,7 +535,7 @@ export class ProductosServiciosService {
           businessId,
           status: BusinessModuleStatus.Enabled,
           module: {
-            moduleName: 'productos',
+            code: 'productos',
           },
         },
         relations: {
