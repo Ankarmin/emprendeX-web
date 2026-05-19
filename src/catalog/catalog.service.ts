@@ -250,26 +250,16 @@ export class ProductosServiciosService {
     businessId: string,
     createItemDto: CreateItemDto,
   ): Promise<ProductosServiciosItemResponse> {
-    if (!createItemDto.unitId) {
-      throw new BadRequestException('Unit is required for products');
-    }
-
-    const unit = await this.unitsRepository.findOne({
-      where: {
-        unitId: createItemDto.unitId,
-        businessId,
-      },
-    });
-
-    if (!unit) {
-      throw new BadRequestException(
-        'Selected unit does not belong to the business',
-      );
-    }
-
     const savedProduct = await this.dataSource.transaction(async (manager) => {
       const itemsRepository = manager.getRepository(ItemEntity);
       const productsRepository = manager.getRepository(ProductEntity);
+      const unitsRepository = manager.getRepository(UnitEntity);
+      const unit = await this.resolveUnitForProduct(
+        businessId,
+        createItemDto.unitId,
+        createItemDto.unitName,
+        unitsRepository,
+      );
       const referenceCode = await this.generateNextReferenceCode(
         businessId,
         ItemClass.Product,
@@ -294,10 +284,9 @@ export class ProductosServiciosService {
 
       const persistedProduct = await productsRepository.save(product);
       persistedProduct.item = savedItem;
+      persistedProduct.unit = unit;
       return persistedProduct;
     });
-
-    savedProduct.unit = unit;
 
     return this.mapProductItem(savedProduct);
   }
@@ -306,27 +295,17 @@ export class ProductosServiciosService {
     businessId: string,
     createItemDto: CreateItemDto,
   ): Promise<ProductosServiciosItemResponse> {
-    if (!createItemDto.categoryId) {
-      throw new BadRequestException('Category is required for services');
-    }
-
-    const category = await this.categoriesRepository.findOne({
-      where: {
-        categoryId: createItemDto.categoryId,
-        businessId,
-      },
-    });
-
-    if (!category) {
-      throw new BadRequestException(
-        'Selected category does not belong to the business',
-      );
-    }
-
     const savedService = await this.dataSource.transaction(async (manager) => {
       const itemsRepository = manager.getRepository(ItemEntity);
       const servicesRepository = manager.getRepository(
         ProductosServiciosEntity,
+      );
+      const categoriesRepository = manager.getRepository(CategoryEntity);
+      const category = await this.resolveCategoryForService(
+        businessId,
+        createItemDto.categoryId,
+        createItemDto.categoryName,
+        categoriesRepository,
       );
       const referenceCode = await this.generateNextReferenceCode(
         businessId,
@@ -351,10 +330,9 @@ export class ProductosServiciosService {
 
       const persistedService = await servicesRepository.save(service);
       persistedService.item = savedItem;
+      persistedService.category = category;
       return persistedService;
     });
-
-    savedService.category = category;
 
     return this.mapServiceItem(savedService);
   }
@@ -397,21 +375,13 @@ export class ProductosServiciosService {
 
     let nextUnit = product.unit;
 
-    if (updateItemDto.unitId) {
-      const unit = await this.unitsRepository.findOne({
-        where: {
-          unitId: updateItemDto.unitId,
-          businessId,
-        },
-      });
-
-      if (!unit) {
-        throw new BadRequestException(
-          'Selected unit does not belong to the business',
-        );
-      }
-
-      nextUnit = unit;
+    if (updateItemDto.unitId || updateItemDto.unitName) {
+      nextUnit = await this.resolveUnitForProduct(
+        businessId,
+        updateItemDto.unitId,
+        updateItemDto.unitName,
+        this.unitsRepository,
+      );
     }
 
     try {
@@ -473,21 +443,13 @@ export class ProductosServiciosService {
 
     let nextCategory = service.category;
 
-    if (updateItemDto.categoryId) {
-      const category = await this.categoriesRepository.findOne({
-        where: {
-          categoryId: updateItemDto.categoryId,
-          businessId,
-        },
-      });
-
-      if (!category) {
-        throw new BadRequestException(
-          'Selected category does not belong to the business',
-        );
-      }
-
-      nextCategory = category;
+    if (updateItemDto.categoryId || updateItemDto.categoryName) {
+      nextCategory = await this.resolveCategoryForService(
+        businessId,
+        updateItemDto.categoryId,
+        updateItemDto.categoryName,
+        this.categoriesRepository,
+      );
     }
 
     try {
@@ -548,6 +510,122 @@ export class ProductosServiciosService {
         'The productos-servicios module is not enabled for this business',
       );
     }
+  }
+
+  private async resolveUnitForProduct(
+    businessId: string,
+    unitId: string | undefined,
+    unitName: string | undefined,
+    unitsRepository: Repository<UnitEntity>,
+  ): Promise<UnitEntity> {
+    if (unitId) {
+      const unit = await unitsRepository.findOne({
+        where: {
+          unitId,
+          businessId,
+        },
+      });
+
+      if (!unit) {
+        throw new BadRequestException(
+          'Selected unit does not belong to the business',
+        );
+      }
+
+      return unit;
+    }
+
+    const normalizedUnitName = unitName?.trim();
+
+    if (!normalizedUnitName) {
+      throw new BadRequestException('Unit is required for products');
+    }
+
+    const existingUnit = await unitsRepository
+      .createQueryBuilder('unit')
+      .where('unit.business_id = :businessId', { businessId })
+      .andWhere('LOWER(unit.unit_name) = LOWER(:unitName)', {
+        unitName: normalizedUnitName,
+      })
+      .getOne();
+
+    if (existingUnit) {
+      return existingUnit;
+    }
+
+    const unit = unitsRepository.create({
+      businessId,
+      unitName: normalizedUnitName,
+      abbreviation: this.generateUnitAbbreviation(normalizedUnitName),
+    });
+
+    return unitsRepository.save(unit);
+  }
+
+  private async resolveCategoryForService(
+    businessId: string,
+    categoryId: string | undefined,
+    categoryName: string | undefined,
+    categoriesRepository: Repository<CategoryEntity>,
+  ): Promise<CategoryEntity> {
+    if (categoryId) {
+      const category = await categoriesRepository.findOne({
+        where: {
+          categoryId,
+          businessId,
+        },
+      });
+
+      if (!category) {
+        throw new BadRequestException(
+          'Selected category does not belong to the business',
+        );
+      }
+
+      return category;
+    }
+
+    const normalizedCategoryName = categoryName?.trim();
+
+    if (!normalizedCategoryName) {
+      throw new BadRequestException('Category is required for services');
+    }
+
+    const existingCategory = await categoriesRepository
+      .createQueryBuilder('category')
+      .where('category.business_id = :businessId', { businessId })
+      .andWhere('LOWER(category.category_name) = LOWER(:categoryName)', {
+        categoryName: normalizedCategoryName,
+      })
+      .getOne();
+
+    if (existingCategory) {
+      return existingCategory;
+    }
+
+    const category = categoriesRepository.create({
+      businessId,
+      categoryName: normalizedCategoryName,
+    });
+
+    return categoriesRepository.save(category);
+  }
+
+  private generateUnitAbbreviation(unitName: string): string {
+    const words = unitName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const abbreviation =
+      words.length > 1
+        ? words
+            .map((word) => word[0])
+            .join('')
+            .toUpperCase()
+        : unitName.trim().slice(0, 10).toUpperCase();
+
+    return abbreviation.slice(0, 10);
   }
 
   private mapProductItem(

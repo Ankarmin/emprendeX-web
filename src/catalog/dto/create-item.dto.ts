@@ -37,6 +37,15 @@ export class CreateItemDto {
   @IsUUID()
   unitId?: string;
 
+  @ValidateIf(
+    (dto: CreateItemDto) =>
+      dto.itemClass === ItemClass.Product && dto.unitId === undefined,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  unitName?: string;
+
   @ValidateIf((dto: CreateItemDto) => dto.itemClass === ItemClass.Product)
   @IsInt()
   @Min(0)
@@ -45,4 +54,13 @@ export class CreateItemDto {
   @ValidateIf((dto: CreateItemDto) => dto.itemClass === ItemClass.Service)
   @IsUUID()
   categoryId?: string;
+
+  @ValidateIf(
+    (dto: CreateItemDto) =>
+      dto.itemClass === ItemClass.Service && dto.categoryId === undefined,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  categoryName?: string;
 }

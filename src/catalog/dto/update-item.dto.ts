@@ -1,5 +1,6 @@
 import {
   IsInt,
+  MinLength,
   IsOptional,
   IsString,
   IsUUID,
@@ -32,6 +33,12 @@ export class UpdateItemDto {
   unitId?: string;
 
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  unitName?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   stock?: number;
@@ -39,4 +46,10 @@ export class UpdateItemDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  categoryName?: string;
 }
