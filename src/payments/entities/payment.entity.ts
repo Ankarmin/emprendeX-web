@@ -6,12 +6,14 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { PaymentStatus } from '../../database/database.enums';
 import { OrderEntity } from '../../orders/entities/order.entity';
 import { PaymentDetailEntity } from './payment-detail.entity';
 
 @Entity({ name: 'payments' })
+@Check('chk_payment_remaining_total_non_negative', '"remaining_total" >= 0')
 export class PaymentEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'payment_id' })
   paymentId!: string;

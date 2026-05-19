@@ -5,6 +5,7 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { ItemClass } from '../../database/database.enums';
 import { ProductEntity } from './product.entity';
@@ -12,6 +13,7 @@ import { ProductosServiciosEntity } from './service.entity';
 import { QuotationDetailEntity } from '../../quotations/entities/quotation-detail.entity';
 
 @Entity({ name: 'items' })
+@Check('chk_item_price_non_negative', '"price" >= 0')
 export class ItemEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'item_id' })
   itemId!: string;

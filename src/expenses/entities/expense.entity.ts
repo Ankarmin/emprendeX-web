@@ -6,11 +6,13 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { FinancialCategoryEntity } from '../../financial-categories/entities/financial-category.entity';
 import { ExpenseDetailEntity } from './expense-detail.entity';
 
 @Entity({ name: 'expenses' })
+@Check('chk_expense_total_non_negative', '"total" >= 0')
 export class ExpenseEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'expense_id' })
   expenseId!: string;

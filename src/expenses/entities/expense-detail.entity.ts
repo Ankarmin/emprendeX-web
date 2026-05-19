@@ -5,11 +5,13 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { PaymentMethodEntity } from '../../payments/entities/payment-method.entity';
 import { ExpenseEntity } from './expense.entity';
 
 @Entity({ name: 'expense_details' })
+@Check('chk_expense_detail_subtotal_non_negative', '"subtotal" >= 0')
 export class ExpenseDetailEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'expense_detail_id' })
   expenseDetailId!: string;

@@ -5,11 +5,13 @@ import {
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { ItemEntity } from './item.entity';
 import { UnitEntity } from './unit.entity';
 
 @Entity({ name: 'products' })
+@Check('chk_product_stock_non_negative', '"stock" >= 0')
 export class ProductEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'product_id' })
   productId!: string;

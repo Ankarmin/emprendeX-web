@@ -7,12 +7,16 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  Unique,
+  Check,
 } from 'typeorm';
 import { PlanPeriod } from '../../database/database.enums';
 import { Plan } from './plan.entity';
 import { Subscription } from '../../subscriptions/entities/subscription.entity';
 
 @Entity({ name: 'plan_prices' })
+@Unique('uq_plan_price_period', ['planId', 'period'])
+@Check('chk_plan_price_non_negative', '"price" >= 0')
 export class PlanPrice {
   @PrimaryGeneratedColumn('uuid', { name: 'plan_price_id' })
   planPriceId!: string;

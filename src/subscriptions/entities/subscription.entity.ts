@@ -6,12 +6,14 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  Check,
 } from 'typeorm';
 import { SubscriptionStatus } from '../../database/database.enums';
 import { PlanPrice } from '../../plans/entities/plan-price.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity({ name: 'subscriptions' })
+@Check('chk_subscription_dates', '"end_date" > "start_date"')
 export class Subscription {
   @PrimaryGeneratedColumn('uuid', { name: 'subscription_id' })
   subscriptionId!: string;

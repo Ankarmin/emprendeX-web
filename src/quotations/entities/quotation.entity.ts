@@ -6,6 +6,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { DeliveryMethod } from '../../database/database.enums';
 import { Customer } from '../../customers/entities/customer.entity';
@@ -13,6 +14,7 @@ import { OrderEntity } from '../../orders/entities/order.entity';
 import { QuotationDetailEntity } from './quotation-detail.entity';
 
 @Entity({ name: 'quotations' })
+@Check('chk_quotation_total_non_negative', '"total" >= 0')
 export class QuotationEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'quotation_id' })
   quotationId!: string;

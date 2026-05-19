@@ -4,11 +4,14 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Check,
 } from 'typeorm';
 import { ItemEntity } from '../../catalog/entities/item.entity';
 import { QuotationEntity } from './quotation.entity';
 
 @Entity({ name: 'quotation_details' })
+@Check('chk_quotation_detail_quantity', '"quantity" > 0')
+@Check('chk_quotation_detail_discount_non_negative', '"discount" >= 0')
 export class QuotationDetailEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'quotation_detail_id' })
   quotationDetailId!: string;
