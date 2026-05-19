@@ -1,7 +1,6 @@
 import { plainToInstance, Type } from 'class-transformer';
 import {
   IsBooleanString,
-  IsEmail,
   IsInt,
   IsOptional,
   IsString,
@@ -43,15 +42,6 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   APP_PUBLIC_URL = 'http://localhost:3000';
-
-  @IsOptional()
-  @IsEmail()
-  SEED_USER_EMAIL?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(8)
-  SEED_USER_PASSWORD?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {

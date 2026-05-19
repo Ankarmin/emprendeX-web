@@ -10,8 +10,7 @@ Primera entrega enfocada en autenticación:
 - Registro con creación real de usuario
 - JWT para sesión autenticada
 - Endpoint para obtener el usuario actual
-- Migración inicial de tabla `users`
-- Usuario semilla configurable por entorno
+- Conexión a PostgreSQL mediante entidades TypeORM
 - Healthcheck para despliegue y verificación
 
 ## Stack
@@ -35,8 +34,6 @@ Variables clave:
 - `JWT_EXPIRES_IN`
 - `CORS_ORIGINS`
 - `APP_PUBLIC_URL`
-- `SEED_USER_EMAIL`
-- `SEED_USER_PASSWORD`
 
 ## Scripts
 
