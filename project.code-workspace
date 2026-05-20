@@ -1,0 +1,206 @@
+{
+  "folders": [
+    {
+      "name": "backend",
+      "path": "."
+    },
+    {
+      "name": "mobile",
+      "path": "../emprendeX-mobile"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit",
+      "source.sortMembers": "explicit"
+    },
+    "debug.node.autoAttach": "smart",
+    "security.workspace.trust.untrustedFiles": "prompt",
+    "search.exclude": {
+      "**/.env": true,
+      "**/.env.*": true,
+      "**/.git": true,
+      "**/.next": true,
+      "**/.turbo": true,
+      "**/.expo": true,
+      "**/coverage": true,
+      "**/dist": true,
+      "**/node_modules": true,
+      "**/android/app/build": true,
+      "**/ios/build": true
+    },
+    "files.watcherExclude": {
+      "**/.git/**": true,
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/.next/**": true,
+      "**/.turbo/**": true,
+      "**/.expo/**": true,
+      "**/coverage/**": true,
+      "**/dist/**": true,
+      "**/node_modules/**": true,
+      "**/android/app/build/**": true,
+      "**/ios/build/**": true
+    },
+    "jest.disabledWorkspaceFolders": [
+      ".agents/skills/expo-cicd-workflows/scripts"
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "orta.vscode-jest",
+      "bradlc.vscode-tailwindcss",
+      "expo.vscode-expo-tools"
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Backend: Nest debug",
+        "type": "node",
+        "request": "launch",
+        "cwd": "${workspaceFolder:backend}",
+        "runtimeExecutable": "pnpm",
+        "runtimeArgs": [
+          "--filter",
+          "./apps/api",
+          "start:debug"
+        ],
+        "console": "integratedTerminal",
+        "restart": true,
+        "skipFiles": [
+          "<node_internals>/**"
+        ]
+      },
+      {
+        "name": "Backend: Attach 9229",
+        "type": "node",
+        "request": "attach",
+        "address": "localhost",
+        "port": 9229,
+        "cwd": "${workspaceFolder:backend}",
+        "restart": true,
+        "skipFiles": [
+          "<node_internals>/**"
+        ]
+      },
+      {
+        "name": "Mobile: Expo debug",
+        "type": "expo",
+        "request": "launch",
+        "workspaceFolder": "${workspaceFolder:mobile}"
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "backend: dev",
+        "type": "shell",
+        "command": "pnpm run dev:api",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: build",
+        "type": "shell",
+        "command": "pnpm run build:api",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "group": "build",
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: lint",
+        "type": "shell",
+        "command": "pnpm run lint:api",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: test:e2e",
+        "type": "shell",
+        "command": "pnpm run test:api:e2e",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "group": "test",
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: docker up",
+        "type": "shell",
+        "command": "pnpm run docker:up",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: docker down",
+        "type": "shell",
+        "command": "pnpm run docker:down",
+        "options": {
+          "cwd": "${workspaceFolder:backend}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "mobile: dev",
+        "type": "shell",
+        "command": "npm run start",
+        "options": {
+          "cwd": "${workspaceFolder:mobile}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "mobile: web",
+        "type": "shell",
+        "command": "npm run web",
+        "options": {
+          "cwd": "${workspaceFolder:mobile}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "mobile: lint",
+        "type": "shell",
+        "command": "npm run lint",
+        "options": {
+          "cwd": "${workspaceFolder:mobile}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "mobile: test",
+        "type": "shell",
+        "command": "npm test -- --passWithNoTests",
+        "options": {
+          "cwd": "${workspaceFolder:mobile}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "dev: all",
+        "dependsOn": [
+          "backend: dev",
+          "mobile: dev"
+        ],
+        "dependsOrder": "parallel",
+        "problemMatcher": []
+      }
+    ]
+  }
+}
