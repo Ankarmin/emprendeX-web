@@ -31,7 +31,6 @@ type UnitResponse = {
   unitId: string;
   businessId: string;
   unitName: string;
-  abbreviation: string;
   createdAt: string;
 };
 
@@ -51,15 +50,14 @@ type ProductosServiciosItemResponse = {
   sku: string | null;
   price: string;
   createdAt: string;
-  product: {
-    productId: string;
-    stock: number;
-    unit: {
-      unitId: string;
-      unitName: string;
-      abbreviation: string;
-    };
-  } | null;
+    product: {
+      productId: string;
+      stock: number;
+      unit: {
+        unitId: string;
+        unitName: string;
+      };
+    } | null;
   service: {
     serviceId: string;
     category: {
@@ -119,10 +117,6 @@ export class ProductosServiciosService {
     const unit = this.unitsRepository.create({
       businessId: business.businessId,
       unitName: createUnitDto.unitName.trim(),
-      abbreviation: this.resolveUnitAbbreviation(
-        createUnitDto.unitName,
-        createUnitDto.abbreviation,
-      ),
     });
 
     return this.mapUnit(await this.unitsRepository.save(unit));
@@ -148,13 +142,6 @@ export class ProductosServiciosService {
       }
 
       unit.unitName = updateUnitDto.unitName.trim();
-    }
-
-    if (updateUnitDto.unitName || updateUnitDto.abbreviation !== undefined) {
-      unit.abbreviation = this.resolveUnitAbbreviation(
-        unit.unitName,
-        updateUnitDto.abbreviation,
-      );
     }
 
     return this.mapUnit(await this.unitsRepository.save(unit));
@@ -721,7 +708,6 @@ export class ProductosServiciosService {
     const unit = unitsRepository.create({
       businessId,
       unitName: normalizedUnitName,
-      abbreviation: this.generateUnitAbbreviation(normalizedUnitName),
     });
 
     return unitsRepository.save(unit);
@@ -774,39 +760,11 @@ export class ProductosServiciosService {
     return categoriesRepository.save(category);
   }
 
-  private generateUnitAbbreviation(unitName: string): string {
-    const words = unitName.trim().split(/\s+/).filter(Boolean);
-
-    const abbreviation =
-      words.length > 1
-        ? words
-            .map((word) => word[0])
-            .join('')
-            .toUpperCase()
-        : unitName.trim().slice(0, 10).toUpperCase();
-
-    return abbreviation.slice(0, 10);
-  }
-
-  private resolveUnitAbbreviation(
-    unitName: string,
-    abbreviation: string | undefined,
-  ): string {
-    const normalizedAbbreviation = abbreviation?.trim();
-
-    if (normalizedAbbreviation) {
-      return normalizedAbbreviation.toUpperCase();
-    }
-
-    return this.generateUnitAbbreviation(unitName);
-  }
-
   private mapUnit(unit: UnitEntity): UnitResponse {
     return {
       unitId: unit.unitId,
       businessId: unit.businessId,
       unitName: unit.unitName,
-      abbreviation: unit.abbreviation,
       createdAt: unit.createdAt.toISOString(),
     };
   }
@@ -896,7 +854,6 @@ export class ProductosServiciosService {
         unit: {
           unitId: product.unit.unitId,
           unitName: product.unit.unitName,
-          abbreviation: product.unit.abbreviation,
         },
       },
       service: null,

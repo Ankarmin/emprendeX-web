@@ -27,9 +27,6 @@ export class UnitEntity {
   @Column({ type: 'varchar', name: 'unit_name', length: 100 })
   unitName!: string;
 
-  @Column({ type: 'varchar', name: 'abbreviation', length: 10 })
-  abbreviation!: string;
-
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;
 

@@ -138,7 +138,6 @@ export class UsersService {
           phone: phone.trim(),
           email: normalizedEmail,
           passwordHash,
-          status: UserStatus.Active,
         });
 
         const savedUser = await usersRepository.save(user);
@@ -309,7 +308,7 @@ export class UsersService {
       lastNames: user.lastNames,
       email: user.email,
       phone: user.phone,
-      status: user.status,
+      status: UserStatus.Active,
       enabledModuleIds,
       activeSubscription,
       businessProfile: {

@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.github
+.vscode
+.env
+.env.local
+npm-debug.log
+README.md
+project.code-workspace
+skills-lock.json

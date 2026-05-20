@@ -5,7 +5,6 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { UserStatus } from '../../database/database.enums';
 import { Business } from '../../businesses/entities/business.entity';
 import { Subscription } from '../../subscriptions/entities/subscription.entity';
 
@@ -34,14 +33,6 @@ export class User {
 
   @Column({ type: 'varchar', name: 'phone', length: 20 })
   phone!: string;
-
-  @Column({
-    type: 'enum',
-    enum: UserStatus,
-    enumName: 'user_status_enum',
-    default: UserStatus.Active,
-  })
-  status!: UserStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt!: Date;
