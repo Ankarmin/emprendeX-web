@@ -1,9 +1,4 @@
-import {
-  Column,
-  Entity,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { ExpenseDetailEntity } from '../../expenses/entities/expense-detail.entity';
 import { PaymentDetailEntity } from './payment-detail.entity';
 

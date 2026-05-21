@@ -13,6 +13,7 @@
     "docker:logs": "docker compose --env-file apps/api/.env logs -f",
     "docker:up": "docker compose --env-file apps/api/.env up --build",
     "docker:up:detached": "docker compose --env-file apps/api/.env up --build -d",
+    "format:check": "prettier --check \"package.json\" \"pnpm-workspace.yaml\" \"turbo.json\" \"docker-compose.yaml\" \".github/**/*.yml\" \"apps/api/**/*.{ts,json,md}\" \"apps/web/**/*.{ts,tsx,js,jsx,json,md}\"",
     "lint": "pnpm exec turbo run lint",
     "lint:api": "pnpm --filter ./apps/api lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

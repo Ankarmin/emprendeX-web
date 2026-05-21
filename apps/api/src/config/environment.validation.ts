@@ -1,4 +1,4 @@
-import { plainToInstance, Transform, Type } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 import {
   IsBooleanString,
   IsEnum,
@@ -26,9 +26,6 @@ class EnvironmentVariables {
   PORT = 3000;
 
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
   @IsEnum(DatabaseTarget)
   DATABASE_TARGET: DatabaseTarget = DatabaseTarget.Auto;
 
@@ -105,7 +102,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   const hasDirectDatabaseUrl = Boolean(
     validatedConfig.DATABASE_PUBLIC_URL?.trim() ||
-      validatedConfig.DATABASE_URL?.trim(),
+    validatedConfig.DATABASE_URL?.trim(),
   );
   const hasLocalDatabaseConfig = [
     validatedConfig.POSTGRES_HOST,

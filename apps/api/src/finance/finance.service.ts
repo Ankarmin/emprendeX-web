@@ -147,7 +147,8 @@ export class FinanceService {
     await this.getBusinessOrThrow(userId);
     const normalizedName = dto.name.trim();
 
-    const existingPaymentMethod = await this.findPaymentMethodByName(normalizedName);
+    const existingPaymentMethod =
+      await this.findPaymentMethodByName(normalizedName);
 
     if (existingPaymentMethod) {
       throw new ConflictException('El método de pago ya está registrado');
@@ -170,7 +171,8 @@ export class FinanceService {
 
     if (dto.name) {
       const normalizedName = dto.name.trim();
-      const existingPaymentMethod = await this.findPaymentMethodByName(normalizedName);
+      const existingPaymentMethod =
+        await this.findPaymentMethodByName(normalizedName);
 
       if (
         existingPaymentMethod &&
@@ -440,9 +442,7 @@ export class FinanceService {
     return business;
   }
 
-  private async getPaymentMethodOrThrow(
-    paymentMethodId: string,
-  ) {
+  private async getPaymentMethodOrThrow(paymentMethodId: string) {
     const paymentMethod = await this.paymentMethodsRepository.findOne({
       where: { paymentMethodId },
     });
