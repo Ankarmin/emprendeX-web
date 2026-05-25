@@ -55,5 +55,8 @@ jobs:
       - name: Run API e2e tests
         run: pnpm run test:api:e2e
 
+      - name: Run web unit tests
+        run: pnpm run test:web:ci
+
       - name: Build monorepo
         run: pnpm run build
