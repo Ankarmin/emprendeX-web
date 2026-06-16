@@ -6,15 +6,20 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { ProductosServiciosService } from './catalog.service';
+import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
+import { ItemClass } from '../database/database.enums';
+import { CatalogService } from './catalog.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateItemDto } from './dto/create-item.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -22,16 +27,18 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 
-@Controller({ path: 'productos-servicios', version: '1' })
+@Controller({ path: 'catalogo', version: '1' })
 @UseGuards(JwtAuthGuard)
-export class ProductosServiciosController {
-  constructor(
-    private readonly productosServiciosService: ProductosServiciosService,
-  ) {}
+@SkipThrottle(SKIP_ALL_THROTTLERS)
+export class CatalogController {
+  constructor(private readonly catalogService: CatalogService) {}
 
   @Get('units')
-  getUnits(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.productosServiciosService.getUnits(currentUser.id);
+  getUnits(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Query('itemClass', new ParseEnumPipe(ItemClass)) itemClass: ItemClass,
+  ) {
+    return this.catalogService.getUnits(currentUser.id, itemClass);
   }
 
   @Post('units')
@@ -40,10 +47,7 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createUnitDto: CreateUnitDto,
   ) {
-    return this.productosServiciosService.createUnit(
-      currentUser.id,
-      createUnitDto,
-    );
+    return this.catalogService.createUnit(currentUser.id, createUnitDto);
   }
 
   @Patch('units/:unitId')
@@ -52,11 +56,7 @@ export class ProductosServiciosController {
     @Param('unitId', new ParseUUIDPipe()) unitId: string,
     @Body() updateUnitDto: UpdateUnitDto,
   ) {
-    return this.productosServiciosService.updateUnit(
-      currentUser.id,
-      unitId,
-      updateUnitDto,
-    );
+    return this.catalogService.updateUnit(currentUser.id, unitId, updateUnitDto);
   }
 
   @Delete('units/:unitId')
@@ -65,12 +65,15 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('unitId', new ParseUUIDPipe()) unitId: string,
   ): Promise<void> {
-    await this.productosServiciosService.deleteUnit(currentUser.id, unitId);
+    await this.catalogService.deleteUnit(currentUser.id, unitId);
   }
 
   @Get('categories')
-  getCategories(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.productosServiciosService.getCategories(currentUser.id);
+  getCategories(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Query('itemClass', new ParseEnumPipe(ItemClass)) itemClass: ItemClass,
+  ) {
+    return this.catalogService.getCategories(currentUser.id, itemClass);
   }
 
   @Post('categories')
@@ -79,10 +82,7 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createCategoryDto: CreateCategoryDto,
   ) {
-    return this.productosServiciosService.createCategory(
-      currentUser.id,
-      createCategoryDto,
-    );
+    return this.catalogService.createCategory(currentUser.id, createCategoryDto);
   }
 
   @Patch('categories/:categoryId')
@@ -91,7 +91,7 @@ export class ProductosServiciosController {
     @Param('categoryId', new ParseUUIDPipe()) categoryId: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
-    return this.productosServiciosService.updateCategory(
+    return this.catalogService.updateCategory(
       currentUser.id,
       categoryId,
       updateCategoryDto,
@@ -104,15 +104,12 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('categoryId', new ParseUUIDPipe()) categoryId: string,
   ): Promise<void> {
-    await this.productosServiciosService.deleteCategory(
-      currentUser.id,
-      categoryId,
-    );
+    await this.catalogService.deleteCategory(currentUser.id, categoryId);
   }
 
   @Get('items')
   getItems(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.productosServiciosService.getItems(currentUser.id);
+    return this.catalogService.getItems(currentUser.id);
   }
 
   @Get('items/:itemId')
@@ -120,7 +117,7 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
   ) {
-    return this.productosServiciosService.getItemById(currentUser.id, itemId);
+    return this.catalogService.getItemById(currentUser.id, itemId);
   }
 
   @Post('items')
@@ -129,10 +126,7 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createItemDto: CreateItemDto,
   ) {
-    return this.productosServiciosService.createItem(
-      currentUser.id,
-      createItemDto,
-    );
+    return this.catalogService.createItem(currentUser.id, createItemDto);
   }
 
   @Patch('items/:itemId')
@@ -141,11 +135,7 @@ export class ProductosServiciosController {
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
     @Body() updateItemDto: UpdateItemDto,
   ) {
-    return this.productosServiciosService.updateItem(
-      currentUser.id,
-      itemId,
-      updateItemDto,
-    );
+    return this.catalogService.updateItem(currentUser.id, itemId, updateItemDto);
   }
 
   @Delete('items/:itemId')
@@ -154,6 +144,6 @@ export class ProductosServiciosController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
   ): Promise<void> {
-    await this.productosServiciosService.deleteItem(currentUser.id, itemId);
+    await this.catalogService.deleteItem(currentUser.id, itemId);
   }
 }

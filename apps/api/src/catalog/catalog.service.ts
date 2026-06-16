@@ -6,18 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  DataSource,
-  EntityManager,
-  QueryFailedError,
-  Repository,
-} from 'typeorm';
+import { EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
+import { BusinessModuleStatus, ItemClass } from '../database/database.enums';
+import { RlsContextService } from '../database/rls/rls-context.service';
 import { CategoryEntity } from './entities/category.entity';
 import { ItemEntity } from './entities/item.entity';
 import { ProductEntity } from './entities/product.entity';
-import { ProductosServiciosEntity } from './entities/service.entity';
+import { ServiceEntity } from './entities/service.entity';
 import { UnitEntity } from './entities/unit.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateItemDto } from './dto/create-item.dto';
@@ -25,103 +22,103 @@ import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
-import { BusinessModuleStatus, ItemClass } from '../database/database.enums';
 
 type UnitResponse = {
   unitId: string;
   businessId: string;
+  itemClass: ItemClass;
   unitName: string;
-  abbreviation: string;
   createdAt: string;
+  updatedAt: string;
 };
 
 type CategoryResponse = {
   categoryId: string;
   businessId: string;
+  itemClass: ItemClass;
   categoryName: string;
   createdAt: string;
+  updatedAt: string;
 };
 
-type ProductosServiciosItemResponse = {
+type ItemResponse = {
   id: string;
-  referenceCode: string;
+  businessId: string;
   itemClass: ItemClass;
   name: string;
   description: string | null;
   sku: string | null;
+  referenceCode: string;
+  imageUrl: string | null;
   price: string;
+  category: {
+    id: string;
+    name: string;
+    itemClass: ItemClass;
+  };
+  unit: {
+    id: string;
+    name: string;
+    itemClass: ItemClass;
+  };
+  stock: number | null;
   createdAt: string;
-  product: {
-    productId: string;
-    stock: number;
-    unit: {
-      unitId: string;
-      unitName: string;
-    };
-  } | null;
-  service: {
-    serviceId: string;
-    category: {
-      categoryId: string;
-      categoryName: string;
-    };
-  } | null;
+  updatedAt: string;
 };
 
 @Injectable()
-export class ProductosServiciosService {
+export class CatalogService {
   constructor(
-    private readonly dataSource: DataSource,
-    @InjectRepository(Business)
-    private readonly businessesRepository: Repository<Business>,
-    @InjectRepository(BusinessModule)
-    private readonly businessModulesRepository: Repository<BusinessModule>,
+    private readonly rlsContextService: RlsContextService,
     @InjectRepository(UnitEntity)
     private readonly unitsRepository: Repository<UnitEntity>,
     @InjectRepository(CategoryEntity)
     private readonly categoriesRepository: Repository<CategoryEntity>,
     @InjectRepository(ItemEntity)
     private readonly itemsRepository: Repository<ItemEntity>,
-    @InjectRepository(ProductEntity)
-    private readonly productsRepository: Repository<ProductEntity>,
-    @InjectRepository(ProductosServiciosEntity)
-    private readonly servicesRepository: Repository<ProductosServiciosEntity>,
   ) {}
 
-  async getUnits(userId: string): Promise<UnitResponse[]> {
-    const business = await this.getBusinessOrThrow(userId);
+  async getUnits(userId: string, itemClass: ItemClass): Promise<UnitResponse[]> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const units = await manager.getRepository(UnitEntity).find({
+        where: { businessId: business.businessId, itemClass },
+        order: { unitName: 'ASC' },
+      });
 
-    const units = await this.unitsRepository.find({
-      where: { businessId: business.businessId },
-      order: { createdAt: 'ASC', unitName: 'ASC' },
+      return units.map((unit) => this.mapUnit(unit));
     });
-
-    return units.map((unit) => this.mapUnit(unit));
   }
 
   async createUnit(
     userId: string,
     createUnitDto: CreateUnitDto,
   ): Promise<UnitResponse> {
-    const business = await this.getBusinessOrThrow(userId);
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const unitsRepository = manager.getRepository(UnitEntity);
+      const unitName = createUnitDto.unitName.trim();
 
-    const existingUnit = await this.findUnitByName(
-      business.businessId,
-      createUnitDto.unitName,
-      this.unitsRepository,
-    );
+      const existingUnit = await this.findUnitByName(
+        business.businessId,
+        createUnitDto.itemClass,
+        unitName,
+        unitsRepository,
+      );
+      if (existingUnit) {
+        throw new ConflictException('La unidad ya está registrada');
+      }
 
-    if (existingUnit) {
-      throw new ConflictException('The unit name is already registered');
-    }
+      const unit = await unitsRepository.save(
+        unitsRepository.create({
+          businessId: business.businessId,
+          itemClass: createUnitDto.itemClass,
+          unitName,
+        }),
+      );
 
-    const unit = this.unitsRepository.create({
-      businessId: business.businessId,
-      unitName: createUnitDto.unitName.trim(),
-      abbreviation: this.buildUnitAbbreviation(createUnitDto.unitName),
+      return this.mapUnit(unit);
     });
-
-    return this.mapUnit(await this.unitsRepository.save(unit));
   }
 
   async updateUnit(
@@ -129,80 +126,97 @@ export class ProductosServiciosService {
     unitId: string,
     updateUnitDto: UpdateUnitDto,
   ): Promise<UnitResponse> {
-    const business = await this.getBusinessOrThrow(userId);
-    const unit = await this.getUnitOrThrow(business.businessId, unitId);
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const unitsRepository = manager.getRepository(UnitEntity);
+      const unit = await this.getUnitOrThrow(business.businessId, unitId, manager);
 
-    if (updateUnitDto.unitName) {
-      const existingUnit = await this.findUnitByName(
-        business.businessId,
-        updateUnitDto.unitName,
-        this.unitsRepository,
-      );
+      if (updateUnitDto.unitName) {
+        const unitName = updateUnitDto.unitName.trim();
+        const existingUnit = await this.findUnitByName(
+          business.businessId,
+          unit.itemClass,
+          unitName,
+          unitsRepository,
+        );
 
-      if (existingUnit && existingUnit.unitId !== unit.unitId) {
-        throw new ConflictException('The unit name is already registered');
+        if (existingUnit && existingUnit.unitId !== unit.unitId) {
+          throw new ConflictException('La unidad ya está registrada');
+        }
+
+        unit.unitName = unitName;
       }
 
-      unit.unitName = updateUnitDto.unitName.trim();
-      unit.abbreviation = this.buildUnitAbbreviation(updateUnitDto.unitName);
-    }
-
-    return this.mapUnit(await this.unitsRepository.save(unit));
+      return this.mapUnit(await unitsRepository.save(unit));
+    });
   }
 
   async deleteUnit(userId: string, unitId: string): Promise<void> {
-    const business = await this.getBusinessOrThrow(userId);
-    await this.getUnitOrThrow(business.businessId, unitId);
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      await this.getUnitOrThrow(business.businessId, unitId, manager);
 
-    const linkedProductsCount = await this.productsRepository.count({
-      where: { unitId },
-    });
+      const linkedItemsCount = await manager.getRepository(ItemEntity).count({
+        where: { businessId: business.businessId, unitId },
+      });
 
-    if (linkedProductsCount > 0) {
-      throw new ConflictException(
-        'Cannot delete unit because it is assigned to products',
-      );
-    }
+      if (linkedItemsCount > 0) {
+        throw new ConflictException(
+          'No se puede eliminar la unidad porque está asignada a items',
+        );
+      }
 
-    await this.unitsRepository.delete({
-      unitId,
-      businessId: business.businessId,
+      await manager.getRepository(UnitEntity).delete({
+        unitId,
+        businessId: business.businessId,
+      });
     });
   }
 
-  async getCategories(userId: string): Promise<CategoryResponse[]> {
-    const business = await this.getBusinessOrThrow(userId);
+  async getCategories(
+    userId: string,
+    itemClass: ItemClass,
+  ): Promise<CategoryResponse[]> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const categories = await manager.getRepository(CategoryEntity).find({
+        where: { businessId: business.businessId, itemClass },
+        order: { categoryName: 'ASC' },
+      });
 
-    const categories = await this.categoriesRepository.find({
-      where: { businessId: business.businessId },
-      order: { createdAt: 'ASC', categoryName: 'ASC' },
+      return categories.map((category) => this.mapCategory(category));
     });
-
-    return categories.map((category) => this.mapCategory(category));
   }
 
   async createCategory(
     userId: string,
     createCategoryDto: CreateCategoryDto,
   ): Promise<CategoryResponse> {
-    const business = await this.getBusinessOrThrow(userId);
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const categoriesRepository = manager.getRepository(CategoryEntity);
+      const categoryName = createCategoryDto.categoryName.trim();
 
-    const existingCategory = await this.findCategoryByName(
-      business.businessId,
-      createCategoryDto.categoryName,
-      this.categoriesRepository,
-    );
+      const existingCategory = await this.findCategoryByName(
+        business.businessId,
+        createCategoryDto.itemClass,
+        categoryName,
+        categoriesRepository,
+      );
+      if (existingCategory) {
+        throw new ConflictException('La categoría ya está registrada');
+      }
 
-    if (existingCategory) {
-      throw new ConflictException('The category name is already registered');
-    }
+      const category = await categoriesRepository.save(
+        categoriesRepository.create({
+          businessId: business.businessId,
+          itemClass: createCategoryDto.itemClass,
+          categoryName,
+        }),
+      );
 
-    const category = this.categoriesRepository.create({
-      businessId: business.businessId,
-      categoryName: createCategoryDto.categoryName.trim(),
+      return this.mapCategory(category);
     });
-
-    return this.mapCategory(await this.categoriesRepository.save(category));
   }
 
   async updateCategory(
@@ -210,157 +224,158 @@ export class ProductosServiciosService {
     categoryId: string,
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<CategoryResponse> {
-    const business = await this.getBusinessOrThrow(userId);
-    const category = await this.getCategoryOrThrow(
-      business.businessId,
-      categoryId,
-    );
-
-    if (updateCategoryDto.categoryName) {
-      const existingCategory = await this.findCategoryByName(
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const categoriesRepository = manager.getRepository(CategoryEntity);
+      const category = await this.getCategoryOrThrow(
         business.businessId,
-        updateCategoryDto.categoryName,
-        this.categoriesRepository,
+        categoryId,
+        manager,
       );
 
-      if (
-        existingCategory &&
-        existingCategory.categoryId !== category.categoryId
-      ) {
-        throw new ConflictException('The category name is already registered');
+      if (updateCategoryDto.categoryName) {
+        const categoryName = updateCategoryDto.categoryName.trim();
+        const existingCategory = await this.findCategoryByName(
+          business.businessId,
+          category.itemClass,
+          categoryName,
+          categoriesRepository,
+        );
+
+        if (
+          existingCategory &&
+          existingCategory.categoryId !== category.categoryId
+        ) {
+          throw new ConflictException('La categoría ya está registrada');
+        }
+
+        category.categoryName = categoryName;
       }
 
-      category.categoryName = updateCategoryDto.categoryName.trim();
-    }
-
-    return this.mapCategory(await this.categoriesRepository.save(category));
+      return this.mapCategory(await categoriesRepository.save(category));
+    });
   }
 
   async deleteCategory(userId: string, categoryId: string): Promise<void> {
-    const business = await this.getBusinessOrThrow(userId);
-    await this.getCategoryOrThrow(business.businessId, categoryId);
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      await this.getCategoryOrThrow(business.businessId, categoryId, manager);
 
-    const linkedServicesCount = await this.servicesRepository.count({
-      where: { categoryId },
-    });
+      const linkedItemsCount = await manager.getRepository(ItemEntity).count({
+        where: { businessId: business.businessId, categoryId },
+      });
 
-    if (linkedServicesCount > 0) {
-      throw new ConflictException(
-        'Cannot delete category because it is assigned to services',
-      );
-    }
+      if (linkedItemsCount > 0) {
+        throw new ConflictException(
+          'No se puede eliminar la categoría porque está asignada a items',
+        );
+      }
 
-    await this.categoriesRepository.delete({
-      categoryId,
-      businessId: business.businessId,
+      await manager.getRepository(CategoryEntity).delete({
+        categoryId,
+        businessId: business.businessId,
+      });
     });
   }
 
-  async getItems(userId: string): Promise<ProductosServiciosItemResponse[]> {
-    const business = await this.getBusinessOrThrow(userId);
-    const [products, services] = await Promise.all([
-      this.productsRepository.find({
-        where: {
-          unit: {
-            businessId: business.businessId,
-          },
-        },
+  async getItems(userId: string): Promise<ItemResponse[]> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const items = await manager.getRepository(ItemEntity).find({
+        where: { businessId: business.businessId },
         relations: {
-          item: true,
-          unit: true,
-        },
-        order: {
-          item: {
-            createdAt: 'DESC',
-          },
-        },
-      }),
-      this.servicesRepository.find({
-        where: {
-          category: {
-            businessId: business.businessId,
-          },
-        },
-        relations: {
-          item: true,
           category: true,
+          unit: true,
+          product: true,
+          service: true,
         },
-        order: {
-          item: {
-            createdAt: 'DESC',
-          },
-        },
-      }),
-    ]);
+        order: { createdAt: 'DESC' },
+      });
 
-    return [
-      ...products.map((product) => this.mapProductItem(product)),
-      ...services.map((service) => this.mapServiceItem(service)),
-    ].sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() -
-        new Date(left.createdAt).getTime(),
-    );
+      return items.map((item) => this.mapItem(item));
+    });
   }
 
-  async getItemById(
-    userId: string,
-    itemId: string,
-  ): Promise<ProductosServiciosItemResponse> {
-    const business = await this.getBusinessOrThrow(userId);
-
-    const product = await this.productsRepository.findOne({
-      where: {
-        itemId,
-        unit: {
-          businessId: business.businessId,
-        },
-      },
-      relations: {
-        item: true,
-        unit: true,
-      },
+  async getItemById(userId: string, itemId: string): Promise<ItemResponse> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const item = await this.getItemOrThrow(business.businessId, itemId, manager);
+      return this.mapItem(item);
     });
-
-    if (product) {
-      return this.mapProductItem(product);
-    }
-
-    const service = await this.servicesRepository.findOne({
-      where: {
-        itemId,
-        category: {
-          businessId: business.businessId,
-        },
-      },
-      relations: {
-        item: true,
-        category: true,
-      },
-    });
-
-    if (service) {
-      return this.mapServiceItem(service);
-    }
-
-    throw new NotFoundException('Productos y servicios item not found');
   }
 
   async createItem(
     userId: string,
     createItemDto: CreateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const business = await this.getBusinessOrThrow(userId);
-
+  ): Promise<ItemResponse> {
     try {
-      if (createItemDto.itemClass === ItemClass.Product) {
-        return await this.createProductItem(business.businessId, createItemDto);
-      }
+      return await this.rlsContextService.runAsUser(userId, async (manager) => {
+        const business = await this.getBusinessOrThrow(userId, manager);
+        this.ensureItemSpecializationPayload(
+          createItemDto.itemClass,
+          createItemDto,
+        );
+        const itemsRepository = manager.getRepository(ItemEntity);
+        const productsRepository = manager.getRepository(ProductEntity);
+        const servicesRepository = manager.getRepository(ServiceEntity);
 
-      return await this.createServiceItem(business.businessId, createItemDto);
+        const [category, unit] = await Promise.all([
+          this.getCategoryForItemOrThrow(
+            manager,
+            business.businessId,
+            createItemDto.itemClass,
+            createItemDto.categoryId,
+          ),
+          this.getUnitForItemOrThrow(
+            manager,
+            business.businessId,
+            createItemDto.itemClass,
+            createItemDto.unitId,
+          ),
+        ]);
+
+        const item = await itemsRepository.save(
+          itemsRepository.create({
+            businessId: business.businessId,
+            itemClass: createItemDto.itemClass,
+            categoryId: category.categoryId,
+            unitId: unit.unitId,
+            name: createItemDto.name.trim(),
+            description: this.normalizeOptionalText(createItemDto.description),
+            sku: this.normalizeOptionalText(createItemDto.sku),
+            imageUrl: this.normalizeOptionalText(createItemDto.imageUrl),
+            price: createItemDto.price,
+          }),
+        );
+
+        if (createItemDto.itemClass === ItemClass.Product) {
+          await productsRepository.save(
+            productsRepository.create({
+              itemId: item.itemId,
+              businessId: business.businessId,
+              itemClass: ItemClass.Product,
+              stock: createItemDto.stock ?? 0,
+            }),
+          );
+        } else {
+          await servicesRepository.save(
+            servicesRepository.create({
+              itemId: item.itemId,
+              businessId: business.businessId,
+              itemClass: ItemClass.Service,
+            }),
+          );
+        }
+
+        return this.mapItem(
+          await this.getItemOrThrow(business.businessId, item.itemId, manager),
+        );
+      });
     } catch (error) {
       if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
-        throw new ConflictException('The SKU is already registered');
+        throw new ConflictException(
+          'El SKU o el código de referencia ya se encuentran registrados',
+        );
       }
 
       throw error;
@@ -371,131 +386,99 @@ export class ProductosServiciosService {
     userId: string,
     itemId: string,
     updateItemDto: UpdateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const item = await this.getItemById(userId, itemId);
-    const business = await this.getBusinessOrThrow(userId);
+  ): Promise<ItemResponse> {
+    try {
+      return await this.rlsContextService.runAsUser(userId, async (manager) => {
+        const business = await this.getBusinessOrThrow(userId, manager);
+        const itemsRepository = manager.getRepository(ItemEntity);
+        const productsRepository = manager.getRepository(ProductEntity);
+        const item = await this.getItemOrThrow(business.businessId, itemId, manager);
 
-    if (item.itemClass === ItemClass.Product) {
-      return this.updateProductItem(business.businessId, itemId, updateItemDto);
+        this.ensureItemSpecializationPayload(item.itemClass, updateItemDto);
+
+        if (updateItemDto.name !== undefined) {
+          item.name = updateItemDto.name.trim();
+        }
+        if (updateItemDto.description !== undefined) {
+          item.description = this.normalizeOptionalText(updateItemDto.description);
+        }
+        if (updateItemDto.sku !== undefined) {
+          item.sku = this.normalizeOptionalText(updateItemDto.sku);
+        }
+        if (updateItemDto.imageUrl !== undefined) {
+          item.imageUrl = this.normalizeOptionalText(updateItemDto.imageUrl);
+        }
+        if (updateItemDto.price !== undefined) {
+          item.price = updateItemDto.price;
+        }
+        if (updateItemDto.categoryId !== undefined) {
+          const category = await this.getCategoryForItemOrThrow(
+            manager,
+            business.businessId,
+            item.itemClass,
+            updateItemDto.categoryId,
+          );
+          item.categoryId = category.categoryId;
+        }
+        if (updateItemDto.unitId !== undefined) {
+          const unit = await this.getUnitForItemOrThrow(
+            manager,
+            business.businessId,
+            item.itemClass,
+            updateItemDto.unitId,
+          );
+          item.unitId = unit.unitId;
+        }
+
+        await itemsRepository.save(item);
+
+        if (item.itemClass === ItemClass.Product) {
+          const product = await productsRepository.findOne({
+            where: { itemId, businessId: business.businessId },
+          });
+
+          if (!product) {
+            throw new NotFoundException('Producto no encontrado');
+          }
+
+          if (updateItemDto.stock !== undefined) {
+            product.stock = updateItemDto.stock;
+          }
+
+          await productsRepository.save(product);
+        }
+
+        return this.mapItem(
+          await this.getItemOrThrow(business.businessId, itemId, manager),
+        );
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        throw new ConflictException(
+          'El SKU o el código de referencia ya se encuentran registrados',
+        );
+      }
+
+      throw error;
     }
-
-    return this.updateServiceItem(business.businessId, itemId, updateItemDto);
   }
 
   async deleteItem(userId: string, itemId: string): Promise<void> {
-    const item = await this.getItemById(userId, itemId);
-    await this.getBusinessOrThrow(userId);
-
-    await this.dataSource.transaction(async (manager) => {
-      const itemsRepository = manager.getRepository(ItemEntity);
-      const productsRepository = manager.getRepository(ProductEntity);
-      const servicesRepository = manager.getRepository(
-        ProductosServiciosEntity,
-      );
-
-      if (item.itemClass === ItemClass.Product) {
-        await productsRepository.delete({ itemId });
-      } else {
-        await servicesRepository.delete({ itemId });
-      }
-
-      await itemsRepository.delete({ itemId });
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      await this.getItemOrThrow(business.businessId, itemId, manager);
+      await manager.getRepository(ItemEntity).delete({
+        itemId,
+        businessId: business.businessId,
+      });
     });
   }
 
-  private async createProductItem(
-    businessId: string,
-    createItemDto: CreateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const savedProduct = await this.dataSource.transaction(async (manager) => {
-      const itemsRepository = manager.getRepository(ItemEntity);
-      const productsRepository = manager.getRepository(ProductEntity);
-      const unitsRepository = manager.getRepository(UnitEntity);
-      const unit = await this.resolveUnitForProduct(
-        businessId,
-        createItemDto.unitId,
-        createItemDto.unitName,
-        unitsRepository,
-      );
-      const referenceCode = await this.generateNextReferenceCode(
-        businessId,
-        ItemClass.Product,
-        manager,
-      );
-
-      const item = itemsRepository.create({
-        itemClass: ItemClass.Product,
-        name: createItemDto.name.trim(),
-        description: createItemDto.description?.trim() || null,
-        sku: createItemDto.sku?.trim() || null,
-        price: createItemDto.price,
-      });
-
-      const savedItem = await itemsRepository.save(item);
-      const product = productsRepository.create({
-        itemId: savedItem.itemId,
-        unitId: unit.unitId,
-        stock: createItemDto.stock ?? 1,
-        referenceCode,
-      });
-
-      const persistedProduct = await productsRepository.save(product);
-      persistedProduct.item = savedItem;
-      persistedProduct.unit = unit;
-      return persistedProduct;
-    });
-
-    return this.mapProductItem(savedProduct);
-  }
-
-  private async createServiceItem(
-    businessId: string,
-    createItemDto: CreateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const savedService = await this.dataSource.transaction(async (manager) => {
-      const itemsRepository = manager.getRepository(ItemEntity);
-      const servicesRepository = manager.getRepository(
-        ProductosServiciosEntity,
-      );
-      const categoriesRepository = manager.getRepository(CategoryEntity);
-      const category = await this.resolveCategoryForService(
-        businessId,
-        createItemDto.categoryId,
-        createItemDto.categoryName,
-        categoriesRepository,
-      );
-      const referenceCode = await this.generateNextReferenceCode(
-        businessId,
-        ItemClass.Service,
-        manager,
-      );
-
-      const item = itemsRepository.create({
-        itemClass: ItemClass.Service,
-        name: createItemDto.name.trim(),
-        description: createItemDto.description?.trim() || null,
-        sku: createItemDto.sku?.trim() || null,
-        price: createItemDto.price,
-      });
-
-      const savedItem = await itemsRepository.save(item);
-      const service = servicesRepository.create({
-        itemId: savedItem.itemId,
-        categoryId: category.categoryId,
-        referenceCode,
-      });
-
-      const persistedService = await servicesRepository.save(service);
-      persistedService.item = savedItem;
-      persistedService.category = category;
-      return persistedService;
-    });
-
-    return this.mapServiceItem(savedService);
-  }
-
-  private async getBusinessOrThrow(userId: string): Promise<Business> {
-    const business = await this.businessesRepository.findOne({
+  private async getBusinessOrThrow(
+    userId: string,
+    manager: EntityManager,
+  ): Promise<Business> {
+    const business = await manager.getRepository(Business).findOne({
       where: { userId },
     });
 
@@ -503,310 +486,40 @@ export class ProductosServiciosService {
       throw new BadRequestException('Business profile is not configured');
     }
 
-    await this.ensureProductosServiciosModuleEnabled(business.businessId);
+    await this.ensureCatalogModuleEnabled(business.businessId, manager);
 
     return business;
   }
 
-  private async updateProductItem(
+  private async ensureCatalogModuleEnabled(
     businessId: string,
-    itemId: string,
-    updateItemDto: UpdateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const product = await this.productsRepository.findOne({
-      where: {
-        itemId,
-        unit: {
-          businessId,
-        },
-      },
-      relations: {
-        item: true,
-        unit: true,
-      },
-    });
-
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    let nextUnit = product.unit;
-
-    if (updateItemDto.unitId || updateItemDto.unitName) {
-      nextUnit = await this.resolveUnitForProduct(
-        businessId,
-        updateItemDto.unitId,
-        updateItemDto.unitName,
-        this.unitsRepository,
-      );
-    }
-
-    try {
-      await this.dataSource.transaction(async (manager) => {
-        const itemsRepository = manager.getRepository(ItemEntity);
-        const productsRepository = manager.getRepository(ProductEntity);
-
-        product.item.name = updateItemDto.name?.trim() || product.item.name;
-        product.item.description =
-          updateItemDto.description !== undefined
-            ? updateItemDto.description.trim() || null
-            : product.item.description;
-        product.item.sku =
-          updateItemDto.sku !== undefined
-            ? updateItemDto.sku.trim() || null
-            : product.item.sku;
-        product.item.price = updateItemDto.price ?? product.item.price;
-
-        await itemsRepository.save(product.item);
-
-        product.unitId = nextUnit.unitId;
-        product.unit = nextUnit;
-        product.stock = updateItemDto.stock ?? product.stock;
-
-        await productsRepository.save(product);
-      });
-    } catch (error) {
-      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
-        throw new ConflictException('The SKU is already registered');
-      }
-
-      throw error;
-    }
-
-    return this.mapProductItem(product);
-  }
-
-  private async updateServiceItem(
-    businessId: string,
-    itemId: string,
-    updateItemDto: UpdateItemDto,
-  ): Promise<ProductosServiciosItemResponse> {
-    const service = await this.servicesRepository.findOne({
-      where: {
-        itemId,
-        category: {
-          businessId,
-        },
-      },
-      relations: {
-        item: true,
-        category: true,
-      },
-    });
-
-    if (!service) {
-      throw new NotFoundException('Service not found');
-    }
-
-    let nextCategory = service.category;
-
-    if (updateItemDto.categoryId || updateItemDto.categoryName) {
-      nextCategory = await this.resolveCategoryForService(
-        businessId,
-        updateItemDto.categoryId,
-        updateItemDto.categoryName,
-        this.categoriesRepository,
-      );
-    }
-
-    try {
-      await this.dataSource.transaction(async (manager) => {
-        const itemsRepository = manager.getRepository(ItemEntity);
-        const servicesRepository = manager.getRepository(
-          ProductosServiciosEntity,
-        );
-
-        service.item.name = updateItemDto.name?.trim() || service.item.name;
-        service.item.description =
-          updateItemDto.description !== undefined
-            ? updateItemDto.description.trim() || null
-            : service.item.description;
-        service.item.sku =
-          updateItemDto.sku !== undefined
-            ? updateItemDto.sku.trim() || null
-            : service.item.sku;
-        service.item.price = updateItemDto.price ?? service.item.price;
-
-        await itemsRepository.save(service.item);
-
-        service.categoryId = nextCategory.categoryId;
-        service.category = nextCategory;
-
-        await servicesRepository.save(service);
-      });
-    } catch (error) {
-      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
-        throw new ConflictException('The SKU is already registered');
-      }
-
-      throw error;
-    }
-
-    return this.mapServiceItem(service);
-  }
-
-  private async ensureProductosServiciosModuleEnabled(
-    businessId: string,
+    manager: EntityManager,
   ): Promise<void> {
-    const productosServiciosModule =
-      await this.businessModulesRepository.findOne({
-        where: {
-          businessId,
-          status: BusinessModuleStatus.Enabled,
-          module: {
-            code: 'productos',
-          },
-        },
-        relations: {
-          module: true,
-        },
-      });
+    const catalogModule = await manager.getRepository(BusinessModule).findOne({
+      where: {
+        businessId,
+        status: BusinessModuleStatus.Enabled,
+        module: { code: 'catalogo' },
+      },
+      relations: { module: true },
+    });
 
-    if (!productosServiciosModule) {
+    if (!catalogModule) {
       throw new ForbiddenException(
-        'The productos-servicios module is not enabled for this business',
+        'The catalogo module is not enabled for this business',
       );
     }
-  }
-
-  private async resolveUnitForProduct(
-    businessId: string,
-    unitId: string | undefined,
-    unitName: string | undefined,
-    unitsRepository: Repository<UnitEntity>,
-  ): Promise<UnitEntity> {
-    if (unitId) {
-      const unit = await unitsRepository.findOne({
-        where: {
-          unitId,
-          businessId,
-        },
-      });
-
-      if (!unit) {
-        throw new BadRequestException(
-          'Selected unit does not belong to the business',
-        );
-      }
-
-      return unit;
-    }
-
-    const normalizedUnitName = unitName?.trim();
-
-    if (!normalizedUnitName) {
-      throw new BadRequestException('Unit is required for products');
-    }
-
-    const existingUnit = await this.findUnitByName(
-      businessId,
-      normalizedUnitName,
-      unitsRepository,
-    );
-
-    if (existingUnit) {
-      return existingUnit;
-    }
-
-    const unit = unitsRepository.create({
-      businessId,
-      unitName: normalizedUnitName,
-      abbreviation: this.buildUnitAbbreviation(normalizedUnitName),
-    });
-
-    return unitsRepository.save(unit);
-  }
-
-  private async resolveCategoryForService(
-    businessId: string,
-    categoryId: string | undefined,
-    categoryName: string | undefined,
-    categoriesRepository: Repository<CategoryEntity>,
-  ): Promise<CategoryEntity> {
-    if (categoryId) {
-      const category = await categoriesRepository.findOne({
-        where: {
-          categoryId,
-          businessId,
-        },
-      });
-
-      if (!category) {
-        throw new BadRequestException(
-          'Selected category does not belong to the business',
-        );
-      }
-
-      return category;
-    }
-
-    const normalizedCategoryName = categoryName?.trim();
-
-    if (!normalizedCategoryName) {
-      throw new BadRequestException('Category is required for services');
-    }
-
-    const existingCategory = await this.findCategoryByName(
-      businessId,
-      normalizedCategoryName,
-      categoriesRepository,
-    );
-
-    if (existingCategory) {
-      return existingCategory;
-    }
-
-    const category = categoriesRepository.create({
-      businessId,
-      categoryName: normalizedCategoryName,
-    });
-
-    return categoriesRepository.save(category);
-  }
-
-  private mapUnit(unit: UnitEntity): UnitResponse {
-    return {
-      unitId: unit.unitId,
-      businessId: unit.businessId,
-      unitName: unit.unitName,
-      abbreviation: unit.abbreviation,
-      createdAt: unit.createdAt.toISOString(),
-    };
-  }
-
-  private buildUnitAbbreviation(unitName: string): string {
-    const normalized = unitName.trim();
-
-    const abbreviationFromWords = normalized
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => word[0])
-      .join('')
-      .slice(0, 10)
-      .toUpperCase();
-
-    if (abbreviationFromWords.length > 0) {
-      return abbreviationFromWords;
-    }
-
-    return normalized.replace(/\s+/g, '').slice(0, 10).toUpperCase();
-  }
-
-  private mapCategory(category: CategoryEntity): CategoryResponse {
-    return {
-      categoryId: category.categoryId,
-      businessId: category.businessId,
-      categoryName: category.categoryName,
-      createdAt: category.createdAt.toISOString(),
-    };
   }
 
   private async getUnitOrThrow(
     businessId: string,
     unitId: string,
+    manager?: EntityManager,
   ): Promise<UnitEntity> {
-    const unit = await this.unitsRepository.findOne({
-      where: { unitId, businessId },
+    const unitsRepository =
+      manager?.getRepository(UnitEntity) ?? this.unitsRepository;
+    const unit = await unitsRepository.findOne({
+      where: { businessId, unitId },
     });
 
     if (!unit) {
@@ -819,9 +532,12 @@ export class ProductosServiciosService {
   private async getCategoryOrThrow(
     businessId: string,
     categoryId: string,
+    manager?: EntityManager,
   ): Promise<CategoryEntity> {
-    const category = await this.categoriesRepository.findOne({
-      where: { categoryId, businessId },
+    const categoriesRepository =
+      manager?.getRepository(CategoryEntity) ?? this.categoriesRepository;
+    const category = await categoriesRepository.findOne({
+      where: { businessId, categoryId },
     });
 
     if (!category) {
@@ -831,134 +547,164 @@ export class ProductosServiciosService {
     return category;
   }
 
+  private async getItemOrThrow(
+    businessId: string,
+    itemId: string,
+    manager?: EntityManager,
+  ): Promise<ItemEntity> {
+    const itemsRepository =
+      manager?.getRepository(ItemEntity) ?? this.itemsRepository;
+    const item = await itemsRepository.findOne({
+      where: { businessId, itemId },
+      relations: {
+        category: true,
+        unit: true,
+        product: true,
+        service: true,
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Item not found');
+    }
+
+    return item;
+  }
+
+  private async getUnitForItemOrThrow(
+    manager: EntityManager,
+    businessId: string,
+    itemClass: ItemClass,
+    unitId: string,
+  ) {
+    const unitsRepository = manager.getRepository(UnitEntity);
+    const unit = await unitsRepository.findOne({
+      where: { businessId, itemClass, unitId },
+    });
+
+    if (!unit) {
+      throw new BadRequestException(
+        'La unidad seleccionada no pertenece al negocio o al tipo de item',
+      );
+    }
+
+    return unit;
+  }
+
+  private async getCategoryForItemOrThrow(
+    manager: EntityManager,
+    businessId: string,
+    itemClass: ItemClass,
+    categoryId: string,
+  ) {
+    const categoriesRepository = manager.getRepository(CategoryEntity);
+    const category = await categoriesRepository.findOne({
+      where: { businessId, itemClass, categoryId },
+    });
+
+    if (!category) {
+      throw new BadRequestException(
+        'La categoría seleccionada no pertenece al negocio o al tipo de item',
+      );
+    }
+
+    return category;
+  }
+
+  private ensureItemSpecializationPayload(
+    itemClass: ItemClass,
+    payload: { stock?: number },
+  ) {
+    if (itemClass === ItemClass.Service && payload.stock !== undefined) {
+      throw new BadRequestException(
+        'Los servicios no aceptan stock en este flujo',
+      );
+    }
+  }
+
   private findUnitByName(
     businessId: string,
+    itemClass: ItemClass,
     unitName: string,
-    unitsRepository: Repository<UnitEntity>,
-  ): Promise<UnitEntity | null> {
-    return unitsRepository
-      .createQueryBuilder('unit')
-      .where('unit.business_id = :businessId', { businessId })
-      .andWhere('LOWER(unit.unit_name) = LOWER(:unitName)', {
-        unitName: unitName.trim(),
-      })
-      .getOne();
+    repository?: Repository<UnitEntity>,
+  ) {
+    const unitsRepository = repository ?? this.unitsRepository;
+    return unitsRepository.findOne({
+      where: { businessId, itemClass, unitName: unitName.trim() },
+    });
   }
 
   private findCategoryByName(
     businessId: string,
-    categoryName: string,
-    categoriesRepository: Repository<CategoryEntity>,
-  ): Promise<CategoryEntity | null> {
-    return categoriesRepository
-      .createQueryBuilder('category')
-      .where('category.business_id = :businessId', { businessId })
-      .andWhere('LOWER(category.category_name) = LOWER(:categoryName)', {
-        categoryName: categoryName.trim(),
-      })
-      .getOne();
-  }
-
-  private mapProductItem(
-    product: ProductEntity,
-  ): ProductosServiciosItemResponse {
-    return {
-      id: product.item.itemId,
-      referenceCode: product.referenceCode,
-      itemClass: product.item.itemClass,
-      name: product.item.name,
-      description: product.item.description,
-      sku: product.item.sku,
-      price: product.item.price,
-      createdAt: product.item.createdAt.toISOString(),
-      product: {
-        productId: product.productId,
-        stock: product.stock,
-        unit: {
-          unitId: product.unit.unitId,
-          unitName: product.unit.unitName,
-        },
-      },
-      service: null,
-    };
-  }
-
-  private mapServiceItem(
-    service: ProductosServiciosEntity,
-  ): ProductosServiciosItemResponse {
-    return {
-      id: service.item.itemId,
-      referenceCode: service.referenceCode,
-      itemClass: service.item.itemClass,
-      name: service.item.name,
-      description: service.item.description,
-      sku: service.item.sku,
-      price: service.item.price,
-      createdAt: service.item.createdAt.toISOString(),
-      product: null,
-      service: {
-        serviceId: service.serviceId,
-        category: {
-          categoryId: service.category.categoryId,
-          categoryName: service.category.categoryName,
-        },
-      },
-    };
-  }
-
-  private async generateNextReferenceCode(
-    businessId: string,
     itemClass: ItemClass,
-    manager: EntityManager,
-  ): Promise<string> {
-    type ReferenceSequenceRow = {
-      lastReferenceNumber: number | string | null;
+    categoryName: string,
+    repository?: Repository<CategoryEntity>,
+  ) {
+    const categoriesRepository = repository ?? this.categoriesRepository;
+    return categoriesRepository.findOne({
+      where: { businessId, itemClass, categoryName: categoryName.trim() },
+    });
+  }
+
+  private normalizeOptionalText(
+    value: string | null | undefined,
+  ): string | null {
+    const normalizedValue = value?.trim();
+    return normalizedValue ? normalizedValue : null;
+  }
+
+  private mapUnit(unit: UnitEntity): UnitResponse {
+    return {
+      unitId: unit.unitId,
+      businessId: unit.businessId,
+      itemClass: unit.itemClass,
+      unitName: unit.unitName,
+      createdAt: unit.createdAt.toISOString(),
+      updatedAt: unit.updatedAt.toISOString(),
     };
+  }
 
-    const prefix = itemClass === ItemClass.Product ? 'PRD' : 'SRV';
+  private mapCategory(category: CategoryEntity): CategoryResponse {
+    return {
+      categoryId: category.categoryId,
+      businessId: category.businessId,
+      itemClass: category.itemClass,
+      categoryName: category.categoryName,
+      createdAt: category.createdAt.toISOString(),
+      updatedAt: category.updatedAt.toISOString(),
+    };
+  }
 
-    // Serialize number generation per business and item class.
-    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-      `${businessId}:${prefix}`,
-    ]);
-
-    const [row] =
-      itemClass === ItemClass.Product
-        ? await manager.query<ReferenceSequenceRow[]>(
-            `
-              SELECT COALESCE(
-                MAX(CAST(SUBSTRING(p.reference_code FROM 'PRD-(\\d+)$') AS INTEGER)),
-                0
-              ) AS "lastReferenceNumber"
-              FROM "products" p
-              INNER JOIN "units" u ON u."unit_id" = p."unit_id"
-              WHERE u."business_id" = $1
-            `,
-            [businessId],
-          )
-        : await manager.query<ReferenceSequenceRow[]>(
-            `
-              SELECT COALESCE(
-                MAX(CAST(SUBSTRING(s.reference_code FROM 'SRV-(\\d+)$') AS INTEGER)),
-                0
-              ) AS "lastReferenceNumber"
-              FROM "services" s
-              INNER JOIN "categories" c ON c."category_id" = s."category_id"
-              WHERE c."business_id" = $1
-            `,
-            [businessId],
-          );
-
-    const nextReferenceNumber = Number(row?.lastReferenceNumber ?? 0) + 1;
-
-    return `${prefix}-${nextReferenceNumber}`;
+  private mapItem(item: ItemEntity): ItemResponse {
+    return {
+      id: item.itemId,
+      businessId: item.businessId,
+      itemClass: item.itemClass,
+      name: item.name,
+      description: item.description,
+      sku: item.sku,
+      referenceCode: item.referenceCode,
+      imageUrl: item.imageUrl,
+      price: item.price,
+      category: {
+        id: item.category.categoryId,
+        name: item.category.categoryName,
+        itemClass: item.category.itemClass,
+      },
+      unit: {
+        id: item.unit.unitId,
+        name: item.unit.unitName,
+        itemClass: item.unit.itemClass,
+      },
+      stock: item.itemClass === ItemClass.Product ? item.product?.stock ?? 0 : null,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    };
   }
 
   private isUniqueViolation(error: {
     driverError?: { code?: string };
   }): boolean {
-    const driverError = error.driverError;
-
-    return driverError?.code === '23505';
+    return error.driverError?.code === '23505';
   }
 }

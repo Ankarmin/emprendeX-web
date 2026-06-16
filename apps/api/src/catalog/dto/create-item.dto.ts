@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
@@ -11,18 +12,22 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ItemClass } from '../../database/database.enums';
+import {
+  HTTPS_URL_REGEX,
+  transformTrimmedNullableString,
+} from '../../common/utils/url.util';
 
 export class CreateItemDto {
   @IsEnum(ItemClass)
   itemClass!: ItemClass;
 
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(100)
   name!: string;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   description?: string;
 
   @IsOptional()
@@ -30,37 +35,23 @@ export class CreateItemDto {
   @MaxLength(100)
   sku?: string;
 
+  @IsOptional()
+  @Transform(transformTrimmedNullableString)
+  @Matches(HTTPS_URL_REGEX)
+  @MaxLength(2048)
+  imageUrl?: string | null;
+
   @Matches(/^\d+(\.\d{1,2})?$/)
   price!: string;
 
-  @ValidateIf((dto: CreateItemDto) => dto.itemClass === ItemClass.Product)
   @IsUUID()
-  unitId?: string;
+  unitId!: string;
 
-  @ValidateIf(
-    (dto: CreateItemDto) =>
-      dto.itemClass === ItemClass.Product && dto.unitId === undefined,
-  )
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  unitName?: string;
+  @IsUUID()
+  categoryId!: string;
 
   @ValidateIf((dto: CreateItemDto) => dto.itemClass === ItemClass.Product)
   @IsInt()
   @Min(0)
   stock?: number;
-
-  @ValidateIf((dto: CreateItemDto) => dto.itemClass === ItemClass.Service)
-  @IsUUID()
-  categoryId?: string;
-
-  @ValidateIf(
-    (dto: CreateItemDto) =>
-      dto.itemClass === ItemClass.Service && dto.categoryId === undefined,
-  )
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  categoryName?: string;
 }
