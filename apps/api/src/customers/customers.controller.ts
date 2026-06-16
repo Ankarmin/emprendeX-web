@@ -11,15 +11,18 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
 
 @Controller({ path: 'clientes', version: '1' })
 @UseGuards(JwtAuthGuard)
+@SkipThrottle(SKIP_ALL_THROTTLERS)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
