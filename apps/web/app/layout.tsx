@@ -24,7 +24,9 @@ export default function RootLayout({
         className="flex min-h-full flex-col bg-stone-100 text-stone-950"
         suppressHydrationWarning
       >
-        {children}
+        <div suppressHydrationWarning>
+          {children}
+        </div>
       </body>
     </html>
   );
