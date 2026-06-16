@@ -1,8 +1,17 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  Unique,
+  UpdateDateColumn,
+} from 'typeorm';
 import { PlanStatus } from '../../database/database.enums';
 import { PlanPrice } from './plan-price.entity';
 
 @Entity({ name: 'plans' })
+@Unique('uq_plans_name', ['name'])
 export class Plan {
   @PrimaryGeneratedColumn('uuid', { name: 'plan_id' })
   planId!: string;
@@ -20,6 +29,12 @@ export class Plan {
     default: PlanStatus.Enabled,
   })
   status!: PlanStatus;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt!: Date;
 
   @OneToMany(() => PlanPrice, (planPrice) => planPrice.plan)
   planPrices!: PlanPrice[];
