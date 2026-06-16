@@ -2,6 +2,7 @@ export type PublicUser = {
   id: string;
   firstNames: string;
   lastNames: string;
+  dni: string;
   email: string;
   phone: string;
   status: 'Inactive' | 'Active' | 'Blocked';

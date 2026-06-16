@@ -1,5 +1,6 @@
 import { plainToInstance, Type } from 'class-transformer';
 import {
+  IsUrl,
   IsBooleanString,
   IsEnum,
   IsInt,
@@ -76,11 +77,64 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  CORS_ORIGINS = '*';
+  CORS_ORIGINS =
+    'http://localhost:3001,http://localhost:8081,http://localhost:19006';
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  WEB_PUBLIC_URL = 'http://localhost:3001';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_LINK_REGISTRATION_TTL_HOURS = 168;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_LINK_CATALOG_TTL_HOURS = 72;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_READ_TTL_MINUTES = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_READ_LIMIT = 60;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_SUBMIT_TTL_MINUTES = 10;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_SUBMIT_LIMIT = 5;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_MAX_ITEMS = 25;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  PUBLIC_CATALOG_MAX_ITEM_QUANTITY = 100;
 
   @IsOptional()
   @IsString()
-  APP_PUBLIC_URL = 'http://localhost:3000';
+  PUBLIC_CATALOG_TURNSTILE_SECRET_KEY?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {

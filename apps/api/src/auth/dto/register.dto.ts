@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsString,
@@ -5,6 +6,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import {
+  DNI_REGEX,
+  DNI_VALIDATION_MESSAGE,
+  transformTrimmedString,
+} from '../../common/utils/dni.util';
 
 export class RegisterDto {
   @IsString()
@@ -17,8 +23,13 @@ export class RegisterDto {
   @MaxLength(100)
   lastName!: string;
 
+  @Transform(transformTrimmedString)
   @IsString()
-  @Matches(/^[0-9+()\-\s]{7,20}$/)
+  @Matches(DNI_REGEX, { message: DNI_VALIDATION_MESSAGE })
+  dni!: string;
+
+  @IsString()
+  @Matches(/^\+?[0-9]{6,20}$/)
   phone!: string;
 
   @IsEmail()

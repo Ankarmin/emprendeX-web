@@ -3,9 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
-function resolveCorsOrigins(corsOrigins: string | undefined): true | string[] {
-  if (!corsOrigins || corsOrigins.trim() === '*' || corsOrigins.trim() === '') {
-    return true;
+function resolveCorsOrigins(corsOrigins: string | undefined): string[] {
+  if (!corsOrigins || corsOrigins.trim() === '') {
+    return [
+      'http://localhost:3001',
+      'http://localhost:8081',
+      'http://localhost:19006',
+    ];
   }
 
   return corsOrigins

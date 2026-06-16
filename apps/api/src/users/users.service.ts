@@ -15,13 +15,21 @@ import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
 import {
   BusinessModuleStatus,
+  PlanPeriod,
   SubscriptionStatus,
   UserStatus,
 } from '../database/database.enums';
 import { FeatureModuleEntity } from '../modules/entities/feature-module.entity';
-import { PublicUser } from './types/public-user.type';
+import { PlanPrice } from '../plans/entities/plan-price.entity';
 import { Subscription } from '../subscriptions/entities/subscription.entity';
+import { normalizeDni } from '../common/utils/dni.util';
+import {
+  appendPublicCatalogSlugSuffix,
+  normalizePublicCatalogSlug,
+} from '../common/utils/public-catalog-slug.util';
+import { RlsContextService } from '../database/rls/rls-context.service';
 import { User } from './entities/user.entity';
+import { PublicUser } from './types/public-user.type';
 import {
   AVAILABLE_MODULE_IDS,
   DEFAULT_ENABLED_MODULE_IDS,
@@ -30,12 +38,13 @@ import {
 type AuthUserRecord = {
   id: string;
   email: string;
-  passwordHash: string | null;
+  passwordHash: string;
 };
 
 type CreateUserInput = {
   firstNames: string;
   lastNames: string;
+  dni: string;
   phone: string;
   email: string;
   password: string;
@@ -43,17 +52,25 @@ type CreateUserInput = {
   businessCategory: string;
 };
 
-type AvailableModuleId = (typeof AVAILABLE_MODULE_IDS)[number];
-
 type UpdateBusinessProfileInput = {
   businessName: string;
   businessCategory: string;
 };
 
+type UpdateOwnProfileInput = {
+  firstNames: string;
+  lastNames: string;
+  businessName: string;
+  businessCategory: string;
+};
+
+type AvailableModuleId = (typeof AVAILABLE_MODULE_IDS)[number];
+
 export type UserSessionState = {
   id: string;
   firstNames: string;
   lastNames: string;
+  dni: string;
   email: string;
   phone: string;
   status: UserStatus;
@@ -78,6 +95,7 @@ export type UserSessionState = {
 export class UsersService {
   constructor(
     private readonly dataSource: DataSource,
+    private readonly rlsContextService: RlsContextService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Business)
@@ -86,12 +104,16 @@ export class UsersService {
     private readonly businessModulesRepository: Repository<BusinessModule>,
     @InjectRepository(FeatureModuleEntity)
     private readonly modulesRepository: Repository<FeatureModuleEntity>,
+    @InjectRepository(PlanPrice)
+    private readonly planPricesRepository: Repository<PlanPrice>,
     @InjectRepository(Subscription)
     private readonly subscriptionsRepository: Repository<Subscription>,
   ) {}
 
   async findById(id: string): Promise<UserSessionState | null> {
-    return this.loadSessionState(id);
+    return this.rlsContextService.runAsUser(id, (manager) =>
+      this.loadSessionState(id, manager),
+    );
   }
 
   async findByEmailWithPassword(email: string): Promise<AuthUserRecord | null> {
@@ -115,54 +137,75 @@ export class UsersService {
     };
   }
 
-  async create({
-    firstNames,
-    lastNames,
-    phone,
-    email,
-    password,
-    businessName,
-    businessCategory,
-  }: CreateUserInput): Promise<UserSessionState> {
-    const normalizedEmail = this.normalizeEmail(email);
-    const passwordHash = await hash(password, 12);
+  async create(input: CreateUserInput): Promise<UserSessionState> {
+    const normalizedEmail = this.normalizeEmail(input.email);
+    const normalizedDni = normalizeDni(input.dni);
+    const normalizedPhone = input.phone.trim();
+    const passwordHash = await hash(input.password, 12);
 
     try {
-      const createdUser = await this.dataSource.transaction(async (manager) => {
+      const userId = await this.dataSource.transaction(async (manager) => {
         const usersRepository = manager.getRepository(User);
         const businessesRepository = manager.getRepository(Business);
+        const subscriptionsRepository = manager.getRepository(Subscription);
 
-        const user = usersRepository.create({
-          firstNames: firstNames.trim(),
-          lastNames: lastNames.trim(),
-          phone: phone.trim(),
-          email: normalizedEmail,
-          passwordHash,
-        });
+        const user = await usersRepository.save(
+          usersRepository.create({
+            firstNames: input.firstNames.trim(),
+            lastNames: input.lastNames.trim(),
+            dni: normalizedDni,
+            email: normalizedEmail,
+            phone: normalizedPhone,
+            passwordHash,
+          }),
+        );
 
-        const savedUser = await usersRepository.save(user);
+        const business = await businessesRepository.save(
+          businessesRepository.create({
+            userId: user.userId,
+            businessName: input.businessName.trim(),
+            businessCategory: input.businessCategory.trim(),
+            publicCatalogSlug: await this.generateUniquePublicCatalogSlug(
+              input.businessName,
+              businessesRepository,
+            ),
+            catalogIsPublic: true,
+          }),
+        );
 
-        const business = businessesRepository.create({
-          userId: savedUser.userId,
-          businessName: businessName.trim(),
-          businessCategory: businessCategory.trim(),
-        });
+        const defaultPlanPrice = await this.getDefaultPlanPrice(manager);
+        const startDate = new Date();
+        const endDate = this.addDays(startDate, 30);
 
-        await businessesRepository.save(business);
+        await subscriptionsRepository.save(
+          subscriptionsRepository.create({
+            userId: user.userId,
+            planPriceId: defaultPlanPrice.planPriceId,
+            startDate,
+            endDate,
+            status: SubscriptionStatus.Active,
+          }),
+        );
 
-        return savedUser;
+        await this.syncBusinessModulesForBusiness(
+          business.businessId,
+          DEFAULT_ENABLED_MODULE_IDS,
+          manager,
+        );
+
+        return user.userId;
       });
 
-      const sessionState = await this.loadSessionState(createdUser.userId);
+      const sessionState = await this.loadSessionState(userId);
 
       if (!sessionState) {
-        throw new Error('Failed to load created user session state.');
+        throw new Error('Failed to load created user session state');
       }
 
       return sessionState;
     } catch (error) {
       if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
-        throw new ConflictException('Email is already registered');
+        throw new ConflictException(this.getUniqueViolationMessage(error));
       }
 
       throw error;
@@ -171,48 +214,86 @@ export class UsersService {
 
   async updateBusinessProfile(
     userId: string,
-    { businessName, businessCategory }: UpdateBusinessProfileInput,
+    input: UpdateBusinessProfileInput,
   ): Promise<UserSessionState | null> {
-    const user = await this.usersRepository.findOne({ where: { userId } });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.findPrimaryBusinessByUserId(userId, manager);
 
-    if (!user) {
-      return null;
-    }
-
-    await this.dataSource.transaction(async (manager) => {
-      const businessesRepository = manager.getRepository(Business);
-      const existingBusiness = await businessesRepository.findOne({
-        where: { userId },
-      });
-
-      if (existingBusiness) {
-        existingBusiness.businessName = businessName.trim();
-        existingBusiness.businessCategory = businessCategory.trim();
-        await businessesRepository.save(existingBusiness);
-        const enabledModuleIds = await this.loadEnabledModuleIds(
-          existingBusiness.businessId,
-          manager.getRepository(BusinessModule),
-        );
-        if (enabledModuleIds.length > 0) {
-          await this.syncBusinessModulesForBusiness(
-            existingBusiness.businessId,
-            enabledModuleIds,
-            manager,
-          );
-        }
-        return;
+      if (!business) {
+        return null;
       }
 
-      const business = businessesRepository.create({
-        userId,
-        businessName: businessName.trim(),
-        businessCategory: businessCategory.trim(),
-      });
+      business.businessName = input.businessName.trim();
+      business.businessCategory = input.businessCategory.trim();
+      await manager.getRepository(Business).save(business);
 
-      await businessesRepository.save(business);
+      return this.loadSessionState(userId, manager);
     });
+  }
 
-    return this.loadSessionState(userId);
+  async updateOwnProfile(
+    userId: string,
+    input: UpdateOwnProfileInput,
+  ): Promise<UserSessionState | null> {
+    try {
+      return this.rlsContextService.runAsUser(userId, async (manager) => {
+        const usersRepository = manager.getRepository(User);
+        const businessesRepository = manager.getRepository(Business);
+        const user = await usersRepository.findOne({ where: { userId } });
+        const business = await businessesRepository.findOne({
+          where: { userId },
+        });
+
+        if (!user || !business) {
+          return null;
+        }
+
+        user.firstNames = input.firstNames.trim();
+        user.lastNames = input.lastNames.trim();
+        business.businessName = input.businessName.trim();
+        business.businessCategory = input.businessCategory.trim();
+
+        await usersRepository.save(user);
+        await businessesRepository.save(business);
+
+        return this.loadSessionState(userId, manager);
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        throw new ConflictException(this.getUniqueViolationMessage(error));
+      }
+
+      throw error;
+    }
+  }
+
+  async ensureDefaultModulesForUser(
+    userId: string,
+  ): Promise<UserSessionState | null> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.findPrimaryBusinessByUserId(userId, manager);
+
+      if (!business) {
+        return null;
+      }
+
+      await this.syncBusinessModulesForBusiness(
+        business.businessId,
+        DEFAULT_ENABLED_MODULE_IDS,
+        manager,
+      );
+
+      return this.loadSessionState(userId, manager);
+    });
+  }
+
+  async findPrimaryBusinessByUserId(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Business | null> {
+    const businessesRepository =
+      manager?.getRepository(Business) ?? this.businessesRepository;
+    return businessesRepository.findOne({ where: { userId } });
   }
 
   toPublicUser(user: UserSessionState): PublicUser {
@@ -220,6 +301,7 @@ export class UsersService {
       id: user.id,
       firstNames: user.firstNames,
       lastNames: user.lastNames,
+      dni: user.dni,
       email: user.email,
       phone: user.phone,
       status: user.status,
@@ -238,59 +320,26 @@ export class UsersService {
     return !hasBusinessProfile || user.enabledModuleIds.length === 0;
   }
 
-  async ensureDefaultModulesForUser(
-    userId: string,
-  ): Promise<UserSessionState | null> {
-    const user = await this.usersRepository.findOne({ where: { userId } });
-
-    if (!user) {
-      return null;
-    }
-
-    const business = await this.findPrimaryBusinessByUserId(userId);
-
-    if (!business) {
-      throw new BadRequestException(
-        'Business profile must be configured first',
-      );
-    }
-
-    await this.dataSource.transaction(async (manager) => {
-      await this.syncBusinessModulesForBusiness(
-        business.businessId,
-        DEFAULT_ENABLED_MODULE_IDS,
-        manager,
-      );
-    });
-
-    return this.loadSessionState(userId);
-  }
-
-  async findPrimaryBusinessByUserId(userId: string): Promise<Business | null> {
-    return this.findPrimaryBusinessByUserIdInternal(userId);
-  }
-
   private async loadSessionState(
     userId: string,
     manager?: EntityManager,
   ): Promise<UserSessionState | null> {
     const usersRepository =
       manager?.getRepository(User) ?? this.usersRepository;
+    const businessesRepository =
+      manager?.getRepository(Business) ?? this.businessesRepository;
     const businessModulesRepository =
       manager?.getRepository(BusinessModule) ?? this.businessModulesRepository;
+    const subscriptionsRepository =
+      manager?.getRepository(Subscription) ?? this.subscriptionsRepository;
 
-    const user = await usersRepository.findOne({
-      where: { userId },
-    });
+    const user = await usersRepository.findOne({ where: { userId } });
 
     if (!user) {
       return null;
     }
 
-    const business = await this.findPrimaryBusinessByUserIdInternal(
-      userId,
-      manager,
-    );
+    const business = await businessesRepository.findOne({ where: { userId } });
     const enabledModuleIds = business
       ? await this.loadEnabledModuleIds(
           business.businessId,
@@ -299,13 +348,14 @@ export class UsersService {
       : [];
     const activeSubscription = await this.loadActiveSubscription(
       userId,
-      manager,
+      subscriptionsRepository,
     );
 
     return {
       id: user.userId,
       firstNames: user.firstNames,
       lastNames: user.lastNames,
+      dni: user.dni,
       email: user.email,
       phone: user.phone,
       status: UserStatus.Active,
@@ -317,48 +367,6 @@ export class UsersService {
         category: business?.businessCategory ?? null,
       },
     };
-  }
-
-  private async findPrimaryBusinessByUserIdInternal(
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<Business | null> {
-    const businessesRepository =
-      manager?.getRepository(Business) ?? this.businessesRepository;
-
-    return businessesRepository.findOne({ where: { userId } });
-  }
-
-  private async syncBusinessModulesForBusiness(
-    businessId: string,
-    enabledModuleIds: AvailableModuleId[],
-    manager?: EntityManager,
-  ): Promise<void> {
-    const modulesRepository =
-      manager?.getRepository(FeatureModuleEntity) ?? this.modulesRepository;
-    const businessModulesRepository =
-      manager?.getRepository(BusinessModule) ?? this.businessModulesRepository;
-
-    const availableModules = await modulesRepository.find();
-    const enabledModuleIdSet = new Set(enabledModuleIds);
-
-    await businessModulesRepository.delete({ businessId });
-
-    if (availableModules.length === 0) {
-      return;
-    }
-
-    const businessModules = availableModules.map((module) =>
-      businessModulesRepository.create({
-        businessId,
-        moduleId: module.moduleId,
-        status: enabledModuleIdSet.has(module.code as AvailableModuleId)
-          ? BusinessModuleStatus.Enabled
-          : BusinessModuleStatus.Blocked,
-      }),
-    );
-
-    await businessModulesRepository.save(businessModules);
   }
 
   private async loadEnabledModuleIds(
@@ -373,22 +381,22 @@ export class UsersService {
       relations: {
         module: true,
       },
+      order: {
+        createdAt: 'ASC',
+      },
     });
 
     return businessModules
       .map((businessModule) => businessModule.module.code)
-      .filter((moduleId): moduleId is AvailableModuleId =>
-        AVAILABLE_MODULE_IDS.includes(moduleId as AvailableModuleId),
+      .filter((code): code is AvailableModuleId =>
+        AVAILABLE_MODULE_IDS.includes(code as AvailableModuleId),
       );
   }
 
   private async loadActiveSubscription(
     userId: string,
-    manager?: EntityManager,
+    subscriptionsRepository: Repository<Subscription>,
   ): Promise<UserSessionState['activeSubscription']> {
-    const subscriptionsRepository =
-      manager?.getRepository(Subscription) ?? this.subscriptionsRepository;
-
     const subscription = await subscriptionsRepository.findOne({
       where: {
         userId,
@@ -420,13 +428,110 @@ export class UsersService {
     };
   }
 
+  private async syncBusinessModulesForBusiness(
+    businessId: string,
+    enabledModuleIds: AvailableModuleId[],
+    manager: EntityManager,
+  ): Promise<void> {
+    const modulesRepository = manager.getRepository(FeatureModuleEntity);
+    const businessModulesRepository = manager.getRepository(BusinessModule);
+    const availableModules = await modulesRepository.find({
+      order: { code: 'ASC' },
+    });
+
+    if (availableModules.length === 0) {
+      throw new BadRequestException(
+        'La tabla modules no tiene datos iniciales',
+      );
+    }
+
+    const enabledModuleIdSet = new Set(enabledModuleIds);
+
+    await businessModulesRepository.delete({ businessId });
+
+    await businessModulesRepository.save(
+      availableModules.map((module) =>
+        businessModulesRepository.create({
+          businessId,
+          moduleId: module.moduleId,
+          status: enabledModuleIdSet.has(module.code as AvailableModuleId)
+            ? BusinessModuleStatus.Enabled
+            : BusinessModuleStatus.Blocked,
+        }),
+      ),
+    );
+  }
+
+  private async getDefaultPlanPrice(
+    manager: EntityManager,
+  ): Promise<PlanPrice> {
+    const planPricesRepository = manager.getRepository(PlanPrice);
+    const defaultPlanPrice = await planPricesRepository.findOne({
+      where: {
+        period: PlanPeriod.Monthly,
+        isActive: true,
+        plan: {
+          name: 'Básico',
+        },
+      },
+      relations: {
+        plan: true,
+      },
+    });
+
+    if (!defaultPlanPrice) {
+      throw new BadRequestException(
+        'No existe un plan mensual Básico activo para registrar usuarios',
+      );
+    }
+
+    return defaultPlanPrice;
+  }
+
+  private addDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    result.setUTCDate(result.getUTCDate() + days);
+    return result;
+  }
+
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
+  }
+
+  private async generateUniquePublicCatalogSlug(
+    businessName: string,
+    businessesRepository: Repository<Business>,
+  ): Promise<string> {
+    const baseSlug = normalizePublicCatalogSlug(businessName);
+    let candidate = baseSlug;
+    let suffix = 2;
+
+    while (
+      await businessesRepository.findOne({
+        where: { publicCatalogSlug: candidate },
+        select: { businessId: true },
+      })
+    ) {
+      candidate = appendPublicCatalogSlugSuffix(baseSlug, suffix);
+      suffix += 1;
+    }
+
+    return candidate;
   }
 
   private isUniqueViolation(error: {
     driverError?: { code?: string };
   }): boolean {
     return error.driverError?.code === '23505';
+  }
+
+  private getUniqueViolationMessage(error: {
+    driverError?: { constraint?: string };
+  }): string {
+    if (error.driverError?.constraint === 'uq_users_dni') {
+      return 'El DNI ya se encuentra registrado';
+    }
+
+    return 'Email o telefono ya se encuentran registrados';
   }
 }
