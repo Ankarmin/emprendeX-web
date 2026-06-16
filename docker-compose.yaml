@@ -4,10 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - ./apps/api/.env
+      - ./apps/api/.env.local
     environment:
       DATABASE_TARGET: local
       POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
       DATABASE_PUBLIC_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-emprendex}
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
