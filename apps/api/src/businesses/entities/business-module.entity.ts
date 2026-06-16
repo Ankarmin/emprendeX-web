@@ -1,5 +1,6 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
@@ -43,10 +44,13 @@ export class BusinessModule {
     type: 'enum',
     enum: BusinessModuleStatus,
     enumName: 'business_module_status_enum',
-    default: BusinessModuleStatus.Enabled,
+    default: BusinessModuleStatus.Blocked,
   })
   status!: BusinessModuleStatus;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
 }

@@ -1,12 +1,15 @@
 import { Body, Controller, Patch, Put, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
 import { UpdateOnboardingSetupDto } from './dto/update-onboarding-setup.dto';
 import { OnboardingService } from './onboarding.service';
 
 @Controller({ path: 'onboarding', version: '1' })
 @UseGuards(JwtAuthGuard)
+@SkipThrottle(SKIP_ALL_THROTTLERS)
 export class OnboardingController {
   constructor(private readonly onboardingService: OnboardingService) {}
 
