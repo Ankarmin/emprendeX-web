@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { ItemEntity } from '../catalog/entities/item.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { OrderEntity } from '../orders/entities/order.entity';
@@ -22,6 +23,7 @@ import { SalesService } from './sales.service';
       PaymentEntity,
       PaymentDetailEntity,
     ]),
+    AuditLogsModule,
     UsersModule,
   ],
   controllers: [SalesController],
