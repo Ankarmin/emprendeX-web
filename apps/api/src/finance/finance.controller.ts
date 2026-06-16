@@ -11,9 +11,11 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
 import { CreateFinancialCategoryDto } from './dto/create-financial-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
@@ -24,6 +26,7 @@ import { FinanceService } from './finance.service';
 
 @Controller({ path: 'contabilidad', version: '1' })
 @UseGuards(JwtAuthGuard)
+@SkipThrottle(SKIP_ALL_THROTTLERS)
 export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
@@ -35,6 +38,14 @@ export class FinanceController {
   @Get('records')
   listRecords(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.financeService.listRecords(currentUser.id);
+  }
+
+  @Get('payments/:paymentId/details')
+  listPaymentDetails(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
+  ) {
+    return this.financeService.listPaymentDetails(currentUser.id, paymentId);
   }
 
   @Get('payment-methods')
