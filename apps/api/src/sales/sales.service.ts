@@ -3,14 +3,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { EntityManager, In } from 'typeorm';
 import { ItemEntity } from '../catalog/entities/item.entity';
+import { ProductEntity } from '../catalog/entities/product.entity';
 import { Customer } from '../customers/entities/customer.entity';
-import { OrderStatus } from '../database/database.enums';
+import {
+  AuditAction,
+  ItemClass,
+  OrderStatus,
+  PaymentStatus,
+  QuotationOrigin,
+} from '../database/database.enums';
 import { OrderEntity } from '../orders/entities/order.entity';
+import { PaymentEntity } from '../payments/entities/payment.entity';
 import { QuotationDetailEntity } from '../quotations/entities/quotation-detail.entity';
 import { QuotationEntity } from '../quotations/entities/quotation.entity';
+import { RlsContextService } from '../database/rls/rls-context.service';
 import { UsersService } from '../users/users.service';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 
@@ -22,157 +31,259 @@ type OperationSummary = {
   total: string;
   status: string;
   createdAt: string;
+  originLabel: string | null;
 };
 
 @Injectable()
 export class SalesService {
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly rlsContextService: RlsContextService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly usersService: UsersService,
-    @InjectRepository(Customer)
-    private readonly customersRepository: Repository<Customer>,
-    @InjectRepository(ItemEntity)
-    private readonly itemsRepository: Repository<ItemEntity>,
-    @InjectRepository(QuotationEntity)
-    private readonly quotationsRepository: Repository<QuotationEntity>,
-    @InjectRepository(QuotationDetailEntity)
-    private readonly quotationDetailsRepository: Repository<QuotationDetailEntity>,
-    @InjectRepository(OrderEntity)
-    private readonly ordersRepository: Repository<OrderEntity>,
   ) {}
 
   async listQuotations(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const quotations = await this.quotationsRepository.find({
-      where: { customer: { businessId: business.businessId } },
-      relations: { customer: true, quotationDetails: true, orders: true },
-      order: { createdAt: 'DESC' },
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const quotations = await manager.getRepository(QuotationEntity).find({
+        where: { businessId: business.businessId },
+        relations: { customer: true, quotationDetails: true, order: true },
+        order: { createdAt: 'DESC' },
+      });
 
-    return quotations.map((quotation) => this.mapQuotationSummary(quotation));
+      return quotations.map((quotation) => this.mapQuotationSummary(quotation));
+    });
   }
 
   async createQuotation(userId: string, dto: CreateQuotationDto) {
-    const business = await this.getBusinessOrThrow(userId);
-    const customer = await this.customersRepository.findOne({
-      where: { customerId: dto.customerId, businessId: business.businessId },
-    });
-
-    if (!customer) {
-      throw new BadRequestException('Cliente no pertenece al negocio');
-    }
-
-    const items = await this.itemsRepository.find({
-      where: { itemId: In(dto.itemIds) },
-    });
-    if (items.length !== dto.itemIds.length) {
-      throw new BadRequestException('Uno o más items no existen');
-    }
-
-    const total = items.reduce((sum, item) => sum + Number(item.price), 0);
-
-    const quotation = await this.dataSource.transaction(async (manager) => {
-      const quotationRepository = manager.getRepository(QuotationEntity);
-      const quotationDetailRepository = manager.getRepository(
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customersRepository = manager.getRepository(Customer);
+      const itemsRepository = manager.getRepository(ItemEntity);
+      const quotationsRepository = manager.getRepository(QuotationEntity);
+      const quotationDetailsRepository = manager.getRepository(
         QuotationDetailEntity,
       );
-      const referenceCode = await this.generateNextReferenceCode(
-        business.businessId,
-        'COT',
-        'quotations',
-        manager,
-      );
-
-      const createdQuotation = quotationRepository.create({
-        customerId: customer.customerId,
-        description: dto.description?.trim() || null,
-        deliveryDate: new Date(dto.deliveryDate),
-        deliveryMethod: dto.deliveryMethod,
-        total: total.toFixed(2),
-        referenceCode,
+      const customer = await customersRepository.findOne({
+        where: { customerId: dto.customerId, businessId: business.businessId },
       });
 
-      const savedQuotation = await quotationRepository.save(createdQuotation);
+      if (!customer) {
+        throw new BadRequestException('Cliente no pertenece al negocio');
+      }
 
-      const quotationDetails = items.map((item) =>
-        quotationDetailRepository.create({
-          quotationId: savedQuotation.quotationId,
-          itemId: item.itemId,
-          quantity: 1,
-          discount: '0.00',
+      const itemIds = dto.details.map((detail) => detail.itemId);
+      const uniqueItemIds = Array.from(new Set(itemIds));
+      if (uniqueItemIds.length !== itemIds.length) {
+        throw new BadRequestException(
+          'No se permiten items repetidos en la cotización',
+        );
+      }
+
+      const items = await itemsRepository.find({
+        where: { businessId: business.businessId, itemId: In(itemIds) },
+      });
+      if (items.length !== dto.details.length) {
+        throw new BadRequestException('Uno o más items no existen en el negocio');
+      }
+
+      const itemMap = new Map(items.map((item) => [item.itemId, item]));
+      const total = dto.details.reduce((sum, detail) => {
+        const unitPrice = Number(detail.unitPrice);
+        const discount = Number(detail.discount ?? '0.00');
+        return sum + detail.quantity * unitPrice - discount;
+      }, 0);
+
+      for (const detail of dto.details) {
+        const item = itemMap.get(detail.itemId);
+
+        if (!item) {
+          throw new BadRequestException('Item de cotización inválido');
+        }
+
+        if (item.itemClass !== ItemClass.Product) {
+          continue;
+        }
+
+        const result = await manager
+          .createQueryBuilder()
+          .update(ProductEntity)
+          .set({ stock: () => '"stock" - :quantity' })
+          .where('business_id = :businessId', { businessId: business.businessId })
+          .andWhere('item_id = :itemId', { itemId: item.itemId })
+          .andWhere('stock >= :quantity', { quantity: detail.quantity })
+          .execute();
+
+        if (result.affected !== 1) {
+          throw new BadRequestException(
+            `La cantidad solicitada supera el stock disponible de ${item.name}`,
+          );
+        }
+      }
+
+      const createdQuotation = await quotationsRepository.save(
+        quotationsRepository.create({
+          businessId: business.businessId,
+          customerId: customer.customerId,
+          description: dto.description?.trim() || null,
+          deliveryDate: new Date(dto.deliveryDate),
+          deliveryMethod: dto.deliveryMethod,
+          total: total.toFixed(2),
         }),
       );
 
-      await quotationDetailRepository.save(quotationDetails);
+      await quotationDetailsRepository.save(
+        dto.details.map((detail) => {
+          const item = itemMap.get(detail.itemId);
 
-      return quotationRepository.findOneOrFail({
-        where: { quotationId: savedQuotation.quotationId },
-        relations: { customer: true, quotationDetails: true, orders: true },
+          if (!item) {
+            throw new BadRequestException('Item de cotización inválido');
+          }
+
+          const discount = detail.discount ?? '0.00';
+          if (Number(discount) > detail.quantity * Number(detail.unitPrice)) {
+            throw new BadRequestException(
+              'El descuento no puede superar el subtotal',
+            );
+          }
+
+          return quotationDetailsRepository.create({
+            businessId: business.businessId,
+            quotationId: createdQuotation.quotationId,
+            itemId: item.itemId,
+            quantity: detail.quantity,
+            unitPrice: detail.unitPrice,
+            discount,
+          });
+        }),
+      );
+
+      const quotation = await quotationsRepository.findOneOrFail({
+        where: {
+          quotationId: createdQuotation.quotationId,
+          businessId: business.businessId,
+        },
+        relations: { customer: true, quotationDetails: true, order: true },
+      });
+
+      await this.auditLogsService.createWithManager(manager, {
+        actorUserId: userId,
+        businessId: business.businessId,
+        action: AuditAction.Create,
+        tableName: 'quotations',
+        recordId: quotation.quotationId,
+      });
+
+      return this.mapQuotationSummary(quotation);
+    });
+  }
+
+  async removeQuotation(userId: string, quotationId: string): Promise<void> {
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const quotationsRepository = manager.getRepository(QuotationEntity);
+      const quotation = await quotationsRepository.findOne({
+        where: { quotationId, businessId: business.businessId },
+        relations: { order: true },
+      });
+
+      if (!quotation) {
+        throw new NotFoundException('Cotización no encontrada');
+      }
+
+      if (quotation.order) {
+        throw new BadRequestException(
+          'No se puede eliminar una cotización que ya fue aprobada',
+        );
+      }
+
+      await quotationsRepository.delete({
+        quotationId,
+        businessId: business.businessId,
+      });
+
+      await this.auditLogsService.createWithManager(manager, {
+        actorUserId: userId,
+        businessId: business.businessId,
+        action: AuditAction.Delete,
+        tableName: 'quotations',
+        recordId: quotation.quotationId,
       });
     });
-
-    return this.mapQuotationSummary(quotation);
   }
 
   async convertQuotationToOrder(userId: string, quotationId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const quotation = await this.quotationsRepository.findOne({
-      where: { quotationId, customer: { businessId: business.businessId } },
-      relations: { customer: true, quotationDetails: true, orders: true },
-    });
-
-    if (!quotation) {
-      throw new NotFoundException('Cotización no encontrada');
-    }
-
-    if (quotation.orders.length > 0) {
-      return this.mapOperationSummary(
-        quotation.orders[0],
-        quotation,
-        quotation.customer,
-      );
-    }
-
-    const order = await this.dataSource.transaction(async (manager) => {
-      const orderRepository = manager.getRepository(OrderEntity);
-      const referenceCode = await this.generateNextReferenceCode(
-        business.businessId,
-        'PED',
-        'orders',
-        manager,
-      );
-
-      const createdOrder = orderRepository.create({
-        quotationId: quotation.quotationId,
-        status: OrderStatus.Pending,
-        notes: quotation.description,
-        referenceCode,
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const quotationsRepository = manager.getRepository(QuotationEntity);
+      const ordersRepository = manager.getRepository(OrderEntity);
+      const paymentsRepository = manager.getRepository(PaymentEntity);
+      const quotation = await quotationsRepository.findOne({
+        where: { quotationId, businessId: business.businessId },
+        relations: { customer: true, quotationDetails: true, order: true },
       });
 
-      return orderRepository.save(createdOrder);
-    });
+      if (!quotation) {
+        throw new NotFoundException('Cotización no encontrada');
+      }
 
-    return this.mapOperationSummary(order, quotation, quotation.customer);
+      if (quotation.order) {
+        return this.mapOperationSummary(
+          quotation.order,
+          quotation,
+          quotation.customer,
+        );
+      }
+
+      const order = await ordersRepository.save(
+        ordersRepository.create({
+          businessId: business.businessId,
+          quotationId: quotation.quotationId,
+          status: OrderStatus.Pending,
+          notes: quotation.description,
+        }),
+      );
+
+      await paymentsRepository.save(
+        paymentsRepository.create({
+          businessId: business.businessId,
+          orderId: order.orderId,
+          status: PaymentStatus.Unpaid,
+          remainingTotal: quotation.total,
+        }),
+      );
+
+      await this.auditLogsService.createWithManager(manager, {
+        actorUserId: userId,
+        businessId: business.businessId,
+        action: AuditAction.Create,
+        tableName: 'orders',
+        recordId: order.orderId,
+      });
+
+      return this.mapOperationSummary(order, quotation, quotation.customer);
+    });
   }
 
   async listOperations(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const quotations = await this.quotationsRepository.find({
-      where: { customer: { businessId: business.businessId } },
-      relations: { customer: true, orders: true },
-      order: { createdAt: 'DESC' },
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const quotations = await manager.getRepository(QuotationEntity).find({
+        where: { businessId: business.businessId },
+        relations: { customer: true, order: true },
+        order: { createdAt: 'DESC' },
+      });
 
-    const operations: OperationSummary[] = [];
-    for (const quotation of quotations) {
-      if (quotation.orders.length > 0) {
-        for (const order of quotation.orders) {
-          operations.push(
-            this.mapOperationSummary(order, quotation, quotation.customer),
+      const operations: OperationSummary[] = quotations.map((quotation) => {
+        if (quotation.order) {
+          return this.mapOperationSummary(
+            quotation.order,
+            quotation,
+            quotation.customer,
           );
         }
-      } else {
-        operations.push({
+
+        return {
           id: quotation.quotationId,
           referenceCode: quotation.referenceCode,
           type: 'Cotización',
@@ -180,128 +291,132 @@ export class SalesService {
           total: quotation.total,
           status: 'Pendiente',
           createdAt: quotation.createdAt.toISOString(),
-        });
-      }
-    }
+          originLabel: quotation.origin === QuotationOrigin.PublicCatalog
+            ? 'Origen: Catálogo público'
+            : null,
+        };
+      });
 
-    return operations.sort((left, right) =>
-      right.createdAt.localeCompare(left.createdAt),
-    );
+      return operations.sort((left, right) =>
+        right.createdAt.localeCompare(left.createdAt),
+      );
+    });
   }
 
   async findOperationById(userId: string, operationId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const order = await this.ordersRepository.findOne({
-      where: {
-        orderId: operationId,
-        quotation: { customer: { businessId: business.businessId } },
-      },
-      relations: {
-        quotation: {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const ordersRepository = manager.getRepository(OrderEntity);
+      const quotationsRepository = manager.getRepository(QuotationEntity);
+      const order = await ordersRepository.findOne({
+        where: { orderId: operationId, businessId: business.businessId },
+        relations: {
+          payment: { paymentDetails: true },
+          quotation: {
+            customer: true,
+            quotationDetails: { item: true },
+          },
+        },
+      });
+
+      if (order) {
+        return {
+          id: order.orderId,
+          referenceCode: order.referenceCode,
+          type: 'Pedido',
+          status: order.status,
+          customer: this.mapCustomer(order.quotation.customer),
+          deliveryDate: order.quotation.deliveryDate.toISOString(),
+          deliveryMethod: order.quotation.deliveryMethod,
+          description: order.quotation.description,
+          quotationReferenceCode: order.quotation.referenceCode,
+          sourceLabel:
+            order.quotation.origin === QuotationOrigin.PublicCatalog
+              ? 'Creada desde catálogo público'
+              : null,
+          total: order.quotation.total,
+          remainingTotal: order.payment?.remainingTotal ?? order.quotation.total,
+          items: order.quotation.quotationDetails.map((detail) => ({
+            id: detail.quotationDetailId,
+            itemId: detail.itemId,
+            name: detail.item.name,
+            kind: detail.item.itemClass,
+            quantity: detail.quantity,
+            unitPrice: detail.unitPrice,
+            price: detail.unitPrice,
+            discount: detail.discount,
+          })),
+        };
+      }
+
+      const quotation = await quotationsRepository.findOne({
+        where: { quotationId: operationId, businessId: business.businessId },
+        relations: {
           customer: true,
+          order: true,
           quotationDetails: { item: true },
         },
-      },
-    });
+      });
 
-    if (order) {
+      if (!quotation) {
+        throw new NotFoundException('Operación no encontrada');
+      }
+
       return {
-        id: order.orderId,
-        referenceCode: order.referenceCode,
-        type: 'Pedido',
-        status: order.status,
-        customer: this.mapCustomer(order.quotation.customer),
-        deliveryDate: order.quotation.deliveryDate.toISOString(),
-        deliveryMethod: order.quotation.deliveryMethod,
-        description: order.quotation.description,
-        quotationReferenceCode: order.quotation.referenceCode,
-        total: order.quotation.total,
-        items: order.quotation.quotationDetails.map((detail) => ({
+        id: quotation.quotationId,
+        referenceCode: quotation.referenceCode,
+        type: 'Cotización',
+        status: quotation.order ? 'Aprobada' : 'Pendiente',
+        customer: this.mapCustomer(quotation.customer),
+        deliveryDate: quotation.deliveryDate.toISOString(),
+        deliveryMethod: quotation.deliveryMethod,
+        description: quotation.description,
+        quotationReferenceCode: quotation.referenceCode,
+        sourceLabel: quotation.origin === QuotationOrigin.PublicCatalog
+          ? 'Creada desde catálogo público'
+          : null,
+        total: quotation.total,
+        items: quotation.quotationDetails.map((detail) => ({
           id: detail.quotationDetailId,
           itemId: detail.itemId,
           name: detail.item.name,
           kind: detail.item.itemClass,
           quantity: detail.quantity,
+          unitPrice: detail.unitPrice,
+          price: detail.unitPrice,
           discount: detail.discount,
-          price: detail.item.price,
         })),
       };
-    }
-
-    const quotation = await this.quotationsRepository.findOne({
-      where: {
-        quotationId: operationId,
-        customer: { businessId: business.businessId },
-      },
-      relations: { customer: true, quotationDetails: { item: true } },
     });
-
-    if (!quotation) {
-      throw new NotFoundException('Operación no encontrada');
-    }
-
-    return {
-      id: quotation.quotationId,
-      referenceCode: quotation.referenceCode,
-      type: 'Cotización',
-      status: 'Pendiente',
-      customer: this.mapCustomer(quotation.customer),
-      deliveryDate: quotation.deliveryDate.toISOString(),
-      deliveryMethod: quotation.deliveryMethod,
-      description: quotation.description,
-      quotationReferenceCode: quotation.referenceCode,
-      total: quotation.total,
-      items: quotation.quotationDetails.map((detail) => ({
-        id: detail.quotationDetailId,
-        itemId: detail.itemId,
-        name: detail.item.name,
-        kind: detail.item.itemClass,
-        quantity: detail.quantity,
-        discount: detail.discount,
-        price: detail.item.price,
-      })),
-    };
   }
 
   async listPendingOrders(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const orders = await this.ordersRepository.find({
-      where: { quotation: { customer: { businessId: business.businessId } } },
-      relations: {
-        quotation: { customer: true },
-        payments: { paymentDetails: true },
-      },
-      order: { createdAt: 'DESC' },
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const orders = await manager.getRepository(OrderEntity).find({
+        where: { businessId: business.businessId },
+        relations: {
+          payment: true,
+          quotation: { customer: true },
+        },
+        order: { createdAt: 'DESC' },
+      });
 
-    return orders
-      .map((order) => {
-        const paidAmount = order.payments.reduce(
-          (sum, payment) =>
-            sum +
-            payment.paymentDetails.reduce(
-              (detailSum, detail) => detailSum + Number(detail.subtotal),
-              0,
-            ),
-          0,
-        );
-        const total = Number(order.quotation.total);
-        const balance = Math.max(total - paidAmount, 0);
-
-        return {
+      return orders
+        .map((order) => ({
           id: order.orderId,
           referenceCode: order.referenceCode,
           customerName: this.buildCustomerName(order.quotation.customer),
           total: order.quotation.total,
-          balance: balance.toFixed(2),
-        };
-      })
-      .filter((order) => Number(order.balance) > 0);
+          balance: order.payment?.remainingTotal ?? order.quotation.total,
+        }))
+        .filter((order) => Number(order.balance) > 0);
+    });
   }
 
-  private async getBusinessOrThrow(userId: string) {
+  private async getBusinessOrThrow(userId: string, manager?: EntityManager) {
     const business =
-      await this.usersService.findPrimaryBusinessByUserId(userId);
+      await this.usersService.findPrimaryBusinessByUserId(userId, manager);
     if (!business) {
       throw new BadRequestException('Business profile is not configured');
     }
@@ -319,8 +434,11 @@ export class SalesService {
       deliveryMethod: quotation.deliveryMethod,
       total: quotation.total,
       itemsCount: quotation.quotationDetails.length,
-      status: quotation.orders.length > 0 ? 'Aprobada' : 'Pendiente',
+      status: quotation.order ? 'Aprobada' : 'Pendiente',
       createdAt: quotation.createdAt.toISOString(),
+      originLabel: quotation.origin === QuotationOrigin.PublicCatalog
+        ? 'Origen: Catálogo público'
+        : null,
     };
   }
 
@@ -337,16 +455,17 @@ export class SalesService {
       total: quotation.total,
       status: order.status,
       createdAt: order.createdAt.toISOString(),
+      originLabel: quotation.origin === QuotationOrigin.PublicCatalog
+        ? 'Origen: Catálogo público'
+        : null,
     };
-  }
-
-  private buildCustomerName(customer: Customer) {
-    return `${customer.firstNames} ${customer.lastNames ?? ''}`.trim();
   }
 
   private mapCustomer(customer: Customer) {
     return {
       id: customer.customerId,
+      firstNames: customer.firstNames,
+      lastNames: customer.lastNames,
       fullName: this.buildCustomerName(customer),
       email: customer.email,
       phone: customer.phone,
@@ -354,42 +473,7 @@ export class SalesService {
     };
   }
 
-  private async generateNextReferenceCode(
-    businessId: string,
-    prefix: 'COT' | 'PED',
-    tableName: 'quotations' | 'orders',
-    manager: EntityManager,
-  ): Promise<string> {
-    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-      `${businessId}:${prefix}`,
-    ]);
-
-    const [row] = await manager.query<
-      { lastReferenceNumber: number | string | null }[]
-    >(
-      tableName === 'quotations'
-        ? `
-            SELECT COALESCE(
-              MAX(CAST(SUBSTRING(q.reference_code FROM '${prefix}-(\\d+)$') AS INTEGER)),
-              0
-            ) AS "lastReferenceNumber"
-            FROM "quotations" q
-            INNER JOIN "customers" c ON c."customer_id" = q."customer_id"
-            WHERE c."business_id" = $1
-          `
-        : `
-            SELECT COALESCE(
-              MAX(CAST(SUBSTRING(o.reference_code FROM '${prefix}-(\\d+)$') AS INTEGER)),
-              0
-            ) AS "lastReferenceNumber"
-            FROM "orders" o
-            INNER JOIN "quotations" q ON q."quotation_id" = o."quotation_id"
-            INNER JOIN "customers" c ON c."customer_id" = q."customer_id"
-            WHERE c."business_id" = $1
-          `,
-      [businessId],
-    );
-
-    return `${prefix}-${Number(row?.lastReferenceNumber ?? 0) + 1}`;
+  private buildCustomerName(customer: Customer) {
+    return `${customer.firstNames} ${customer.lastNames ?? ''}`.trim();
   }
 }
