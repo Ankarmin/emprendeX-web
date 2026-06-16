@@ -1,172 +1,213 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { OrderEntity } from '../orders/entities/order.entity';
-import { QuotationEntity } from '../quotations/entities/quotation.entity';
+import { EntityManager, QueryFailedError, Repository } from 'typeorm';
+import { normalizeDni } from '../common/utils/dni.util';
+import { RlsContextService } from '../database/rls/rls-context.service';
 import { UsersService } from '../users/users.service';
 import { Customer } from './entities/customer.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { QuotationEntity } from '../quotations/entities/quotation.entity';
 
 @Injectable()
 export class CustomersService {
   constructor(
+    private readonly rlsContextService: RlsContextService,
     private readonly usersService: UsersService,
     @InjectRepository(Customer)
     private readonly customersRepository: Repository<Customer>,
     @InjectRepository(QuotationEntity)
     private readonly quotationsRepository: Repository<QuotationEntity>,
-    @InjectRepository(OrderEntity)
-    private readonly ordersRepository: Repository<OrderEntity>,
   ) {}
 
   async list(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const customers = await this.customersRepository.find({
-      where: { businessId: business.businessId },
-      order: { createdAt: 'DESC' },
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customers = await manager.getRepository(Customer).find({
+        where: { businessId: business.businessId },
+        order: { createdAt: 'DESC' },
+      });
+      const operationsCountByCustomer = await this.getOperationsCountByCustomer(
+        business.businessId,
+        manager,
+      );
+
+      return customers.map((customer) =>
+        this.mapCustomerSummary(
+          customer,
+          operationsCountByCustomer.get(customer.customerId) ?? 0,
+        ),
+      );
     });
-
-    const operationsCountByCustomer = await this.getOperationsCountByCustomer(
-      business.businessId,
-    );
-
-    return customers.map((customer) =>
-      this.mapCustomerSummary(
-        customer,
-        operationsCountByCustomer.get(customer.customerId) ?? 0,
-      ),
-    );
   }
 
   async findOne(userId: string, customerId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const customer = await this.customersRepository.findOne({
-      where: { customerId, businessId: business.businessId },
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customer = await manager.getRepository(Customer).findOne({
+        where: { customerId, businessId: business.businessId },
+      });
 
-    if (!customer) {
-      throw new NotFoundException('Cliente no encontrado');
-    }
-
-    const quotations = await this.quotationsRepository.find({
-      where: { customerId },
-      relations: { orders: true },
-      order: { createdAt: 'DESC' },
-    });
-
-    const operations = quotations.flatMap((quotation) => {
-      if (quotation.orders.length > 0) {
-        return quotation.orders.map((order) => ({
-          id: order.orderId,
-          referenceCode: order.referenceCode,
-          type: 'Pedido',
-          total: quotation.total,
-          status: order.status,
-          createdAt: order.createdAt.toISOString(),
-        }));
+      if (!customer) {
+        throw new NotFoundException('Cliente no encontrado');
       }
 
-      return [
-        {
+      const quotations = await manager.getRepository(QuotationEntity).find({
+        where: { businessId: business.businessId, customerId },
+        relations: { order: true },
+        order: { createdAt: 'DESC' },
+      });
+
+      const operations = quotations.map((quotation) => {
+        if (quotation.order) {
+          return {
+            id: quotation.order.orderId,
+            referenceCode: quotation.order.referenceCode,
+            type: 'Pedido',
+            total: quotation.total,
+            status: quotation.order.status,
+            createdAt: quotation.order.createdAt.toISOString(),
+          };
+        }
+
+        return {
           id: quotation.quotationId,
           referenceCode: quotation.referenceCode,
           type: 'Cotización',
           total: quotation.total,
           status: 'Pendiente',
           createdAt: quotation.createdAt.toISOString(),
-        },
-      ];
-    });
+        };
+      });
 
-    return {
-      ...this.mapCustomerSummary(customer, operations.length),
-      operations,
-    };
+      return {
+        ...this.mapCustomerWithDni(customer, operations.length),
+        operations,
+      };
+    });
   }
 
   async create(userId: string, dto: CreateCustomerDto) {
-    const business = await this.getBusinessOrThrow(userId);
-    const customer = this.customersRepository.create({
-      businessId: business.businessId,
-      firstNames: dto.firstNames.trim(),
-      lastNames: dto.lastNames?.trim() || null,
-      email: dto.email?.trim().toLowerCase() || null,
-      phone: dto.phone?.trim() || null,
-      address: dto.address?.trim() || null,
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customersRepository = manager.getRepository(Customer);
 
-    const savedCustomer = await this.customersRepository.save(customer);
-    return this.mapCustomerSummary(savedCustomer, 0);
+      try {
+        const customer = await customersRepository.save(
+          customersRepository.create({
+            businessId: business.businessId,
+            firstNames: dto.firstNames.trim(),
+            lastNames: dto.lastNames?.trim() || null,
+            dni: normalizeDni(dto.dni),
+            email: dto.email?.trim().toLowerCase() || null,
+            phone: dto.phone?.trim() || null,
+            address: dto.address?.trim() || null,
+          }),
+        );
+
+        return this.mapCustomerWithDni(customer, 0);
+      } catch (error) {
+        if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+          throw new ConflictException(this.getUniqueViolationMessage(error));
+        }
+
+        throw error;
+      }
+    });
   }
 
   async update(userId: string, customerId: string, dto: UpdateCustomerDto) {
-    const business = await this.getBusinessOrThrow(userId);
-    const customer = await this.customersRepository.findOne({
-      where: { customerId, businessId: business.businessId },
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customersRepository = manager.getRepository(Customer);
+      const customer = await customersRepository.findOne({
+        where: { customerId, businessId: business.businessId },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Cliente no encontrado');
+      }
+
+      if (dto.firstNames !== undefined) {
+        customer.firstNames = dto.firstNames.trim();
+      }
+      if (dto.dni !== undefined) {
+        customer.dni = normalizeDni(dto.dni);
+      }
+      if (dto.lastNames !== undefined) {
+        customer.lastNames = dto.lastNames.trim() || null;
+      }
+      if (dto.email !== undefined) {
+        customer.email = dto.email.trim().toLowerCase() || null;
+      }
+      if (dto.phone !== undefined) {
+        customer.phone = dto.phone.trim() || null;
+      }
+      if (dto.address !== undefined) {
+        customer.address = dto.address.trim() || null;
+      }
+
+      try {
+        const savedCustomer = await customersRepository.save(customer);
+        const operationsCountByCustomer = await this.getOperationsCountByCustomer(
+          business.businessId,
+          manager,
+        );
+
+        return this.mapCustomerWithDni(
+          savedCustomer,
+          operationsCountByCustomer.get(savedCustomer.customerId) ?? 0,
+        );
+      } catch (error) {
+        if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+          throw new ConflictException(this.getUniqueViolationMessage(error));
+        }
+
+        throw error;
+      }
     });
-
-    if (!customer) {
-      throw new NotFoundException('Cliente no encontrado');
-    }
-
-    if (dto.firstNames !== undefined) {
-      customer.firstNames = dto.firstNames.trim();
-    }
-    if (dto.lastNames !== undefined) {
-      customer.lastNames = dto.lastNames.trim() || null;
-    }
-    if (dto.email !== undefined) {
-      customer.email = dto.email.trim().toLowerCase() || null;
-    }
-    if (dto.phone !== undefined) {
-      customer.phone = dto.phone.trim() || null;
-    }
-    if (dto.address !== undefined) {
-      customer.address = dto.address.trim() || null;
-    }
-
-    const savedCustomer = await this.customersRepository.save(customer);
-    const operationsCountByCustomer = await this.getOperationsCountByCustomer(
-      business.businessId,
-    );
-
-    return this.mapCustomerSummary(
-      savedCustomer,
-      operationsCountByCustomer.get(savedCustomer.customerId) ?? 0,
-    );
   }
 
   async remove(userId: string, customerId: string): Promise<void> {
-    const business = await this.getBusinessOrThrow(userId);
-    const customer = await this.customersRepository.findOne({
-      where: { customerId, businessId: business.businessId },
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const customersRepository = manager.getRepository(Customer);
+      const quotationsRepository = manager.getRepository(QuotationEntity);
+      const customer = await customersRepository.findOne({
+        where: { customerId, businessId: business.businessId },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Cliente no encontrado');
+      }
+
+      const quotationsCount = await quotationsRepository.count({
+        where: { businessId: business.businessId, customerId },
+      });
+
+      if (quotationsCount > 0) {
+        throw new BadRequestException(
+          'No se puede eliminar un cliente con operaciones asociadas',
+        );
+      }
+
+      await customersRepository.delete({
+        customerId,
+        businessId: business.businessId,
+      });
     });
-
-    if (!customer) {
-      throw new NotFoundException('Cliente no encontrado');
-    }
-
-    const quotationsCount = await this.quotationsRepository.count({
-      where: { customerId },
-    });
-
-    if (quotationsCount > 0) {
-      throw new BadRequestException(
-        'No se puede eliminar un cliente con operaciones asociadas',
-      );
-    }
-
-    await this.customersRepository.delete({ customerId });
   }
 
-  private async getBusinessOrThrow(userId: string) {
-    const business =
-      await this.usersService.findPrimaryBusinessByUserId(userId);
+  private async getBusinessOrThrow(userId: string, manager?: EntityManager) {
+    const business = await this.usersService.findPrimaryBusinessByUserId(
+      userId,
+      manager,
+    );
     if (!business) {
       throw new BadRequestException('Business profile is not configured');
     }
@@ -174,26 +215,36 @@ export class CustomersService {
   }
 
   private mapCustomerSummary(customer: Customer, operationsCount: number) {
-    const fullName =
-      `${customer.firstNames} ${customer.lastNames ?? ''}`.trim();
-
     return {
       id: customer.customerId,
       firstNames: customer.firstNames,
       lastNames: customer.lastNames,
-      fullName,
+      fullName: `${customer.firstNames} ${customer.lastNames ?? ''}`.trim(),
       email: customer.email,
       phone: customer.phone,
       address: customer.address,
       operationsCount,
       createdAt: customer.createdAt.toISOString(),
+      updatedAt: customer.updatedAt.toISOString(),
     };
   }
 
-  private async getOperationsCountByCustomer(businessId: string) {
-    const quotations = await this.quotationsRepository.find({
-      where: { customer: { businessId } },
-      relations: { customer: true },
+  private mapCustomerWithDni(customer: Customer, operationsCount: number) {
+    return {
+      ...this.mapCustomerSummary(customer, operationsCount),
+      dni: customer.dni,
+    };
+  }
+
+  private async getOperationsCountByCustomer(
+    businessId: string,
+    manager?: EntityManager,
+  ) {
+    const quotationsRepository =
+      manager?.getRepository(QuotationEntity) ?? this.quotationsRepository;
+    const quotations = await quotationsRepository.find({
+      where: { businessId },
+      select: { customerId: true },
     });
 
     const operationsCountByCustomer = new Map<string, number>();
@@ -204,5 +255,25 @@ export class CustomersService {
     }
 
     return operationsCountByCustomer;
+  }
+
+  private isUniqueViolation(error: {
+    driverError?: { code?: string };
+  }): boolean {
+    return error.driverError?.code === '23505';
+  }
+
+  private getUniqueViolationMessage(error: {
+    driverError?: { constraint?: string };
+  }): string {
+    switch (error.driverError?.constraint) {
+      case 'uq_customers_business_dni':
+        return 'El DNI del cliente ya existe en este negocio';
+      case 'uq_customers_business_email':
+      case 'uq_customers_business_phone':
+        return 'El email o telefono del cliente ya existe en este negocio';
+      default:
+        return 'Ya existe un cliente con los mismos datos en este negocio';
+    }
   }
 }
