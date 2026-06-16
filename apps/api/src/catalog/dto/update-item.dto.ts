@@ -1,17 +1,23 @@
+import { Transform } from 'class-transformer';
 import {
   IsInt,
-  MinLength,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
+import {
+  HTTPS_URL_REGEX,
+  transformTrimmedNullableString,
+} from '../../common/utils/url.util';
 
 export class UpdateItemDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(100)
   name?: string;
 
@@ -25,18 +31,18 @@ export class UpdateItemDto {
   sku?: string;
 
   @IsOptional()
+  @Transform(transformTrimmedNullableString)
+  @Matches(HTTPS_URL_REGEX)
+  @MaxLength(2048)
+  imageUrl?: string | null;
+
+  @IsOptional()
   @Matches(/^\d+(\.\d{1,2})?$/)
   price?: string;
 
   @IsOptional()
   @IsUUID()
   unitId?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  unitName?: string;
 
   @IsOptional()
   @IsInt()
@@ -46,10 +52,4 @@ export class UpdateItemDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  categoryName?: string;
 }

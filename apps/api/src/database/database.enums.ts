@@ -1,9 +1,3 @@
-export enum UserStatus {
-  Inactive = 'Inactive',
-  Active = 'Active',
-  Blocked = 'Blocked',
-}
-
 export enum PlanStatus {
   Enabled = 'Activado',
   Disabled = 'Desactivado',
@@ -15,7 +9,7 @@ export enum PlanPeriod {
 }
 
 export enum ModuleType {
-  Basic = 'Basico',
+  Basic = 'Básico',
   Premium = 'Premium',
 }
 
@@ -49,6 +43,36 @@ export enum PaymentStatus {
 }
 
 export enum DeliveryMethod {
-  Delivery = 'Delivery',
+  HomeDelivery = 'Entrega a domicilio',
   Pickup = 'Recojo en tienda',
+}
+
+export enum QuotationOrigin {
+  Internal = 'Interno',
+  PublicCatalog = 'Catálogo público',
+}
+
+export enum AuditAction {
+  Create = 'Crear',
+  Update = 'Actualizar',
+  Delete = 'Eliminar',
+  Login = 'Inicio de sesión',
+  Logout = 'Cierre de sesión',
+}
+
+export enum ColorPaletteId {
+  Violet = 'violet',
+  Ocean = 'ocean',
+  Forest = 'forest',
+  Ember = 'ember',
+  Rose = 'rose',
+  Slate = 'slate',
+  Graphite = 'graphite',
+  Sand = 'sand',
+}
+
+export enum UserStatus {
+  Inactive = 'Inactive',
+  Active = 'Active',
+  Blocked = 'Blocked',
 }
