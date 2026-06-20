@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, rmSync, copyFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
@@ -12,7 +12,6 @@ const mobileDir = process.env.EMPRENDEX_MOBILE_DIR
 const cliArgs = new Set(process.argv.slice(2));
 const shouldClearCaches = cliArgs.has('-c') || cliArgs.has('--clear');
 const isWindows = process.platform === 'win32';
-const apiEnvFile = 'apps/api/.env.local';
 const commands = {
   docker: isWindows ? 'docker.exe' : 'docker',
   pnpm: isWindows ? 'pnpm.cmd' : 'pnpm',
@@ -123,6 +122,31 @@ function sleep(ms) {
   return new Promise((resolveSleep) => {
     setTimeout(resolveSleep, ms);
   });
+}
+
+async function waitForDbHealthy(attempts = 30, intervalMs = 1000) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const result = spawnSync(
+      commands.docker,
+      ['compose', 'ps', '--format', 'json'],
+      { cwd: rootDir, encoding: 'utf8' },
+    );
+
+    try {
+      const parsed = JSON.parse(result.stdout?.trim() || 'null');
+      const db = Array.isArray(parsed) ? parsed[0] : parsed;
+
+      if (db?.Health === 'healthy') {
+        return true;
+      }
+    } catch {
+      // Output not valid JSON yet, container may still be starting
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return false;
 }
 
 async function waitForPortToBeAvailable(port, attempts = 20, intervalMs = 250) {
@@ -319,8 +343,6 @@ async function shutdown(exitCode = 0) {
 
   const normalized = normalizeCommand(commands.docker, [
     'compose',
-    '--env-file',
-    apiEnvFile,
     'down',
   ]);
   const down = spawn(normalized.command, normalized.args, {
@@ -343,7 +365,16 @@ process.on('SIGTERM', () => {
 
 clearConsole();
 console.log('Preparing EmprendeX local development stack...');
-runSync(commands.docker, ['compose', '--env-file', apiEnvFile, 'down', '--remove-orphans']);
+
+const mobileEnvExample = resolve(mobileDir, '.env.example');
+const mobileEnvLocal = resolve(mobileDir, '.env.local');
+
+if (existsSync(mobileEnvExample)) {
+  copyFileSync(mobileEnvExample, mobileEnvLocal);
+  console.log(`[env] Restored mobile/.env.local from .env.example`);
+}
+
+runSync(commands.docker, ['compose', 'down', '--remove-orphans']);
 removePathIfExists(resolve(rootDir, 'apps/web/.next'), 'Next.js cache');
 
 if (shouldClearCaches) {
@@ -358,19 +389,23 @@ await releaseKnownDevPorts([3001, 8081]);
 await assertPortsAvailable([3000, 3001, 5433, 8081]);
 
 console.log('EmprendeX local development stack');
-console.log('API Docker: http://localhost:3000/api/v1');
+console.log('API local:  http://localhost:3000/api/v1');
 console.log('Web local:  http://localhost:3001');
 console.log(`Mobile:     ${mobileDir}`);
 console.log('Press Ctrl+C to stop all services and docker containers.');
 
-run('api', commands.docker, [
-  'compose',
-  '--env-file',
-  apiEnvFile,
-  'up',
-  '--build',
-  'api',
-]);
+runSync(commands.docker, ['compose', 'up', '-d', 'db']);
+
+console.log('Waiting for database to be ready...');
+const dbReady = await waitForDbHealthy(30, 1000);
+if (dbReady) {
+  console.log('Database is ready.');
+} else {
+  console.error('Database failed to become healthy. Check docker compose logs.');
+  void shutdown(1);
+}
+
+run('api', commands.pnpm, ['--filter', './apps/api', 'dev']);
 
 run('web', commands.pnpm, ['--filter', './apps/web', 'dev:share']);
 
