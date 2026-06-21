@@ -1,6 +1,6 @@
 ---
 name: flujo-git-trabajo
-description: Flujo de trabajo Git — ramas temporales por módulo, Conventional Commits en español, PR hacia develop, merge directo con merge commit o aprobación
+description: Flujo de trabajo Git — ramas temporales por módulo, Conventional Commits en español, PR hacia develop, merge commit preservando el grafo de ramas
 ---
 
 # Flujo de Trabajo Git — Ramas Temporales y Conventional Commits
@@ -29,7 +29,7 @@ main ─────────────────────────
 
 > `main` no se modifica en este flujo. La rama de integración es `develop`.
 >
-> **Estrategia de merge**: Se usa `--merge` (merge commit) para preservar la estructura de ramas en el historial de git. Esto produce un commit con dos padres (`|\` en `git log --graph`) donde el commit original de la rama temporal se conserva como ancestro visible. GitHub bloquea `gh pr review --approve` en PRs propios, por lo que se omite el paso de aprobación y se usa merge directo.
+> **Estrategia de merge**: Se usa `--merge` (merge commit) para preservar la estructura de ramas en el historial de git. Esto produce un commit con dos padres que `git log --oneline --graph` muestra con `|\`, donde el commit original de la rama temporal se conserva como ancestro visible. GitHub bloquea `gh pr review --approve` en PRs propios, por lo que se omite el paso de aprobación y se hace merge directo con merge commit.
 
 ---
 
@@ -245,7 +245,7 @@ de solicitud y pantalla de confirmación de envío de email.
 
 ### Paso 6 — Hacer merge del PR con merge commit
 
-El merge se hace directamente con `gh pr merge`, sin necesidad de aprobación previa (GitHub bloquea la auto-aprobación en PRs propios). Se usa `--merge` para preservar la estructura de ramas en el historial de git y `--delete-branch` para eliminar la rama remota automáticamente:
+El merge se hace directamente con `gh pr merge`, sin necesidad de aprobación previa (GitHub bloquea la auto-aprobación en PRs propios). Se usa `--merge` para producir un merge commit que preserva la estructura de ramas en el grafo de git:
 
 ```bash
 gh pr merge feat/pantalla-recuperar-contrasena --merge --delete-branch
@@ -257,34 +257,23 @@ Salida esperada:
 ✓ Deleted branch feat/pantalla-recuperar-contrasena
 ```
 
-> **Por qué `--merge` y no `--squash`**: `--merge` produce un merge commit con dos padres (`|\` en `git log --graph`), preservando el commit original de la rama temporal como ancestro visible. Esto mantiene la trazabilidad completa: cada PR aparece como `Merge pull request #XX from Ankarmin/rama` con su commit original debajo.
->
-> Con `--squash` el commit se aplasta linealmente en `develop`, perdiendo la referencia a la rama y dejando el commit original huérfano (sin padre en `develop`).
+**Estructura resultante en el grafo** — Cada PR mergeado con `--merge` produce dos commits visibles en `git log --oneline --graph`:
 
-Comparación visual en `git log --oneline --graph`:
+1. **Merge commit**: `Merge pull request #XX from Ankarmin/rama` (tiene dos padres)
+2. **Commit(s) original(es)**: El o los commits de la rama temporal, conservados como ancestros
 
 ```
-# Con --merge (correcto)
+*   0483ae7 Merge pull request #31 from Ankarmin/chore/flujo-git-trabajo
+|\
+| * 888e533 docs(infra): agregar skill de flujo de trabajo git con Conventional Commits y merge commit
+|/
 *   ca7f4b5 Merge pull request #28 from Ankarmin/chore/env-local-setup
 |\
 | * b696fe2 chore: configuracion de entorno local con Docker y scripts dev:local / dev:railway
 |/
-*
 ```
 
-```
-# Con --squash (evitar)
-* de59dbf chore(infra): agregar skill de flujo de trabajo... (#29)
-|
-*
-```
-
-Opciones de merge:
-| Flag | Estrategia | Uso recomendado |
-|------|-----------|----------------|
-| `--merge` | Merge commit | **Usar siempre**. Preserva el historial de ramas con estructura `|\` |
-| `--squash` | Squash and merge | Solo si la rama tiene un único commit trivial de documentación |
-| `--rebase` | Rebase and merge | Solo si se requiere historial estrictamente lineal |
+> La estructura `|\` es la firma visual de un merge correcto: el commit de la rama temporal queda como hijo directo del merge commit, con trazabilidad completa de qué rama y qué commits introdujeron cada cambio.
 
 ---
 
@@ -456,7 +445,6 @@ gh pr list --base develop --state merged --limit 5
 | **Commits sin formato** | Usar hooks de commitlint o recordar la tabla de tipos. Revisar `git log --oneline` antes de pushear. |
 | **Ramas huérfanas sin PR** | Eliminar ramas locales ya mergeadas: `git branch -d feat/...` |
 | **PR sin descripción** | Usar siempre la plantilla de descripción de PR. Un PR sin descripción clara dificulta la revisión. |
-| **Merge con --squash por error** | Usar siempre `--merge`. Revisar `git log --oneline --graph` post-merge: debe mostrar `|\`. |
 
 ### Buenas prácticas
 
