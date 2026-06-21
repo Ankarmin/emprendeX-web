@@ -3,7 +3,6 @@ packages:
 
 allowBuilds:
   '@nestjs/core': true
-  '@scarf/scarf': set this to true or false
   bcrypt: true
   esbuild: true
   sharp: true
@@ -28,6 +27,7 @@ overrides:
 
 onlyBuiltDependencies:
   - '@nestjs/core'
+  - '@scarf/scarf'
   - bcrypt
   - esbuild
   - sharp
