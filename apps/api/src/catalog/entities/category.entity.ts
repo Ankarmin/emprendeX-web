@@ -9,6 +9,7 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 import { Business } from '../../businesses/entities/business.entity';
 import { ItemClass } from '../../database/database.enums';
 import { ItemEntity } from './item.entity';
@@ -21,9 +22,17 @@ import { ItemEntity } from './item.entity';
 ])
 @Unique('uq_categories_id_business_class', ['categoryId', 'businessId', 'itemClass'])
 export class CategoryEntity {
+  @ApiProperty({
+    description: 'Identificador único de la categoría',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @PrimaryGeneratedColumn('uuid', { name: 'category_id' })
   categoryId!: string;
 
+  @ApiProperty({
+    description: 'Identificador del negocio',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @Column({ type: 'uuid', name: 'business_id' })
   businessId!: string;
 
@@ -33,6 +42,10 @@ export class CategoryEntity {
   @JoinColumn({ name: 'business_id', referencedColumnName: 'businessId' })
   business!: Business;
 
+  @ApiProperty({
+    description: 'Clase de ítem (PRODUCTO o SERVICIO)',
+    example: 'PRODUCTO',
+  })
   @Column({
     type: 'enum',
     name: 'item_class',
@@ -41,12 +54,24 @@ export class CategoryEntity {
   })
   itemClass!: ItemClass;
 
+  @ApiProperty({
+    description: 'Nombre de la categoría',
+    example: 'Electrónicos',
+  })
   @Column({ type: 'varchar', name: 'category_name', length: 100 })
   categoryName!: string;
 
+  @ApiProperty({
+    description: 'Fecha de creación del registro',
+    example: '2026-06-21T12:00:00.000Z',
+  })
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 
+  @ApiProperty({
+    description: 'Fecha de última actualización del registro',
+    example: '2026-06-21T12:00:00.000Z',
+  })
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
 
