@@ -1,11 +1,11 @@
 ---
 name: flujo-git-trabajo
-description: Flujo de trabajo Git — ramas temporales por módulo, Conventional Commits en español, PR hacia develop, y aprobación automática
+description: Flujo de trabajo Git — ramas temporales por módulo, Conventional Commits en español, PR hacia develop, merge directo con squash o aprobación
 ---
 
 # Flujo de Trabajo Git — Ramas Temporales y Conventional Commits
 
-Flujo completo para trabajar en features individuales: crear rama temporal nombrada por módulo, commits con Conventional Commits en español, push al repositorio, PR hacia `develop` y aprobación del PR.
+Flujo completo para trabajar en features individuales: crear rama temporal nombrada por módulo, commits con Conventional Commits en español, push al repositorio, PR hacia `develop`, y merge directo con squash (eliminando la rama remota al finalizar).
 
 ---
 
@@ -25,7 +25,9 @@ main ─────────────────────────
 2. Hacer commits usando Conventional Commits con scope y asunto en español.
 3. Pushear la rama temporal al repositorio remoto.
 4. Crear un PR de la rama temporal hacia `develop`.
-5. Aprobar el PR (y opcionalmente hacer merge).
+5. Hacer merge directo del PR con squash y eliminar la rama remota.
+
+> El merge directo con `--squash --delete-branch` no requiere aprobación previa. GitHub bloquea `gh pr review --approve` en PRs propios, por lo que se usa merge directo como flujo estándar.
 
 > `main` no se modifica en este flujo. La rama de integración es `develop`.
 
@@ -241,24 +243,28 @@ de solicitud y pantalla de confirmación de envío de email.
 5. Verificar que el endpoint devuelve 200"
 ```
 
-### Paso 6 — Aprobar el Pull Request
+### Paso 6 — Hacer merge del PR con squash
+
+El merge se hace directamente con `gh pr merge`, sin necesidad de aprobación previa (GitHub bloquea la auto-aprobación en PRs propios). Se usa `--squash` para mantener un historial limpio en `develop` y `--delete-branch` para eliminar la rama remota automáticamente:
 
 ```bash
-gh pr review feat/pantalla-recuperar-contrasena --approve
+gh pr merge feat/pantalla-recuperar-contrasena --squash --delete-branch
 ```
 
-### Paso 7 — Hacer merge del PR (opcional, vía GitHub UI o CLI)
-
-```bash
-gh pr merge feat/pantalla-recuperar-contrasena --merge --delete-branch
+Salida esperada:
 ```
+✓ Merged pull request #XX (feat/pantalla-recuperar-contrasena)
+✓ Deleted branch feat/pantalla-recuperar-contrasena
+```
+
+> **Nota**: `gh pr merge --squash` aplasta todos los commits de la rama en un solo commit con el título del PR. El mensaje del commit resultante en `develop` será el título del PR.
 
 Opciones de merge:
 | Flag | Estrategia | Uso recomendado |
 |------|-----------|----------------|
-| `--merge` | Merge commit | Ramas con múltiples commits significativos |
-| `--squash` | Squash and merge | Ramas con muchos commits pequeños |
-| `--rebase` | Rebase and merge | Historial lineal, ramas con pocos commits |
+| `--squash` | Squash and merge | **Usar siempre**. Historial limpio: un commit por PR en `develop` |
+| `--merge` | Merge commit | Ramas con múltiples commits significativos (poco frecuente) |
+| `--rebase` | Rebase and merge | Historial lineal, ramas con pocos commits (poco frecuente) |
 
 ---
 
@@ -365,13 +371,10 @@ Implementa la pantalla de recuperación de contraseña:
 5. Verificar que el endpoint \`POST /auth/forgot-password\` responde 200"
 ```
 
-### 5. Aprobar y mergear
+### 5. Mergear con squash
 
 ```bash
-# Aprobar el PR
-gh pr review feat/pantalla-recuperar-contrasena --approve
-
-# Hacer merge (squash para historial limpio)
+# Hacer merge directo (squash para historial limpio, delete-branch para limpiar la rama remota)
 gh pr merge feat/pantalla-recuperar-contrasena --squash --delete-branch
 ```
 
@@ -395,8 +398,7 @@ def5678 feat(dashboard): HU-03 — módulos visibles personalizables (#41)
 | Commit | `git commit -m "tipo(alcance): descripción en español"` |
 | Push inicial | `git push -u origin <rama>` |
 | Crear PR | `gh pr create --base develop --head <rama> --title "..." --body "..."` |
-| Aprobar PR | `gh pr review <rama> --approve` |
-| Merge PR | `gh pr merge <rama> --squash --delete-branch` |
+| Merge PR (squash) | `gh pr merge <rama> --squash --delete-branch` |
 | Ver PRs abiertos | `gh pr list --base develop` |
 | Ver estado PR | `gh pr view <rama>` |
 
