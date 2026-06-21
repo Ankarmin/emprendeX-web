@@ -85,6 +85,14 @@ class EnvironmentVariables {
   WEB_PUBLIC_URL = 'http://localhost:3001';
 
   @IsOptional()
+  @IsUrl({ require_tld: false })
+  API_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  SWAGGER_DOCS_PATH?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
