@@ -9,7 +9,9 @@ const mobileDir = process.env.EMPRENDEX_MOBILE_DIR
   ? resolve(process.env.EMPRENDEX_MOBILE_DIR)
   : defaultMobileDir;
 const mobilePackageJsonPath = resolve(mobileDir, 'package.json');
-const skipMobileInstall = process.env.SKIP_MOBILE_INSTALL === '1';
+const isCi = process.env.CI === 'true' || process.env.VERCEL === '1';
+const skipMobileInstall =
+  process.env.SKIP_MOBILE_INSTALL === '1' || isCi;
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function normalizeCommand(command, args) {
