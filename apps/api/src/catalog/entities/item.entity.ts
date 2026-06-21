@@ -12,6 +12,7 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Business } from '../../businesses/entities/business.entity';
 import { ItemClass } from '../../database/database.enums';
 import { ProductEntity } from './product.entity';
@@ -36,9 +37,17 @@ import { UnitEntity } from './unit.entity';
   `image_url IS NULL OR image_url ~* '^https://[^[:space:]<>''"]+$'`,
 )
 export class ItemEntity {
+  @ApiProperty({
+    description: 'Identificador único del ítem',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @PrimaryGeneratedColumn('uuid', { name: 'item_id' })
   itemId!: string;
 
+  @ApiProperty({
+    description: 'Identificador del negocio',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @Column({ type: 'uuid', name: 'business_id' })
   businessId!: string;
 
@@ -48,6 +57,10 @@ export class ItemEntity {
   @JoinColumn({ name: 'business_id', referencedColumnName: 'businessId' })
   business!: Business;
 
+  @ApiProperty({
+    description: 'Clase del ítem (PRODUCTO o SERVICIO)',
+    example: 'PRODUCTO',
+  })
   @Column({
     type: 'enum',
     name: 'item_class',
@@ -56,6 +69,10 @@ export class ItemEntity {
   })
   itemClass!: ItemClass;
 
+  @ApiProperty({
+    description: 'Identificador de la categoría',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @Column({ type: 'uuid', name: 'category_id' })
   categoryId!: string;
 
@@ -67,6 +84,10 @@ export class ItemEntity {
   ])
   category!: CategoryEntity;
 
+  @ApiProperty({
+    description: 'Identificador de la unidad de medida',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @Column({ type: 'uuid', name: 'unit_id' })
   unitId!: string;
 
@@ -78,12 +99,24 @@ export class ItemEntity {
   ])
   unit!: UnitEntity;
 
+  @ApiProperty({
+    description: 'Nombre del ítem',
+    example: 'Producto Ejemplo',
+  })
   @Column({ type: 'varchar', name: 'name', length: 100 })
   name!: string;
 
+  @ApiPropertyOptional({
+    description: 'Descripción del ítem',
+    example: 'Descripción detallada del producto',
+  })
   @Column({ type: 'text', name: 'description', nullable: true })
   description!: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Código SKU del ítem',
+    example: 'SKU-00123',
+  })
   @Column({
     type: 'varchar',
     name: 'sku',
@@ -101,9 +134,17 @@ export class ItemEntity {
   })
   referenceCode!: string;
 
+  @ApiPropertyOptional({
+    description: 'URL de la imagen del ítem',
+    example: 'https://ejemplo.com/imagen.png',
+  })
   @Column({ type: 'varchar', name: 'image_url', length: 2048, nullable: true })
   imageUrl!: string | null;
 
+  @ApiProperty({
+    description: 'Precio del ítem',
+    example: 99.99,
+  })
   @Column({
     type: 'numeric',
     name: 'price',
@@ -113,9 +154,17 @@ export class ItemEntity {
   })
   price!: string;
 
+  @ApiProperty({
+    description: 'Fecha de creación del registro',
+    example: '2026-06-21T12:00:00.000Z',
+  })
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 
+  @ApiProperty({
+    description: 'Fecha de última actualización del registro',
+    example: '2026-06-21T12:00:00.000Z',
+  })
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
 
