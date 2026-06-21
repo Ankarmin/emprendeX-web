@@ -11,6 +11,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { minutes, SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -45,10 +46,13 @@ const PUBLIC_CATALOG_SUBMIT_THROTTLE = {
   },
 };
 
+@ApiTags('Catálogo Público')
 @Controller({ version: '1' })
 export class PublicCatalogController {
   constructor(private readonly publicCatalogService: PublicCatalogService) {}
 
+  @ApiOperation({ summary: 'Catálogo público por slug', description: 'Obtiene el catálogo público y perfil del negocio por su slug.' })
+  @ApiResponse({ status: 200 })
   @Get('catalogo-publico/:slug')
   @Header('Cache-Control', 'no-store')
   @SkipThrottle(SKIP_PUBLIC_CATALOG_SUBMIT_THROTTLER)
@@ -57,6 +61,8 @@ export class PublicCatalogController {
     return this.publicCatalogService.getPublicCatalog(slug);
   }
 
+  @ApiOperation({ summary: 'Perfil público del negocio' })
+  @ApiResponse({ status: 200 })
   @Get('public-catalog/:slug/profile')
   @Header('Cache-Control', 'no-store')
   @SkipThrottle(SKIP_PUBLIC_CATALOG_SUBMIT_THROTTLER)
@@ -65,6 +71,8 @@ export class PublicCatalogController {
     return this.publicCatalogService.getPublicCatalogProfile(slug);
   }
 
+  @ApiOperation({ summary: 'Ítems del catálogo público', description: 'Lista los productos y servicios del catálogo público por slug.' })
+  @ApiResponse({ status: 200 })
   @Get('public-catalog/:slug/items')
   @Header('Cache-Control', 'no-store')
   @SkipThrottle(SKIP_PUBLIC_CATALOG_SUBMIT_THROTTLER)
@@ -73,6 +81,8 @@ export class PublicCatalogController {
     return this.publicCatalogService.getPublicCatalogItems(slug);
   }
 
+  @ApiOperation({ summary: 'Enviar cotización pública', description: 'Envía una cotización desde el catálogo público. Requiere token de Turnstile.' })
+  @ApiResponse({ status: 201 })
   @Post('catalogo-publico/:slug/cotizaciones')
   @Header('Cache-Control', 'no-store')
   @HttpCode(HttpStatus.CREATED)
@@ -90,6 +100,9 @@ export class PublicCatalogController {
     );
   }
 
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Obtener mi catálogo público', description: 'Obtiene la configuración del catálogo público del negocio autenticado.' })
+  @ApiResponse({ status: 200 })
   @Get('negocios/mi-catalogo-publico')
   @UseGuards(JwtAuthGuard)
   @SkipThrottle(SKIP_ALL_THROTTLERS)
@@ -97,6 +110,9 @@ export class PublicCatalogController {
     return this.publicCatalogService.getMyCatalogSettings(currentUser.id);
   }
 
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar mi catálogo público', description: 'Actualiza slug y visibilidad del catálogo público.' })
+  @ApiResponse({ status: 200 })
   @Patch('negocios/mi-catalogo-publico')
   @UseGuards(JwtAuthGuard)
   @SkipThrottle(SKIP_ALL_THROTTLERS)
