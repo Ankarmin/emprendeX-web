@@ -56,7 +56,7 @@ async function bootstrap() {
     .setDescription(
       'API REST para la plataforma emprendeX — gestión de negocios, catálogo, ventas, finanzas y más.',
     )
-    .setVersion('1.0')
+    .setVersion('4.0.0')
     .addBearerAuth(
       {
         type: 'http',
