@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { AuditLogEntity } from '../../audit-logs/entities/audit-log.entity';
 import { Business } from '../../businesses/entities/business.entity';
 import { trimmedStringTransformer } from '../../common/utils/dni.util';

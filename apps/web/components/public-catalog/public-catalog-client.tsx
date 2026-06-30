@@ -16,6 +16,7 @@ export function PublicCatalogClient({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- patrón de guarda de hidratación cliente-only
     setMounted(true);
   }, []);
 
