@@ -5,15 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { EntityManager, Repository } from 'typeorm';
 import { ExpenseDetailEntity } from '../expenses/entities/expense-detail.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { FinancialCategoryEntity } from '../financial-categories/entities/financial-category.entity';
+import { OrderEntity } from '../orders/entities/order.entity';
 import { PaymentDetailEntity } from '../payments/entities/payment-detail.entity';
 import { PaymentMethodEntity } from '../payments/entities/payment-method.entity';
 import { PaymentEntity } from '../payments/entities/payment.entity';
-import { PaymentStatus } from '../database/database.enums';
-import { OrderEntity } from '../orders/entities/order.entity';
+import { AuditAction, PaymentStatus } from '../database/database.enums';
+import { RlsContextService } from '../database/rls/rls-context.service';
 import { UsersService } from '../users/users.service';
 import { CreateFinancialCategoryDto } from './dto/create-financial-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -25,140 +27,167 @@ import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
 @Injectable()
 export class FinanceService {
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly rlsContextService: RlsContextService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly usersService: UsersService,
-    @InjectRepository(PaymentEntity)
-    private readonly paymentsRepository: Repository<PaymentEntity>,
-    @InjectRepository(PaymentDetailEntity)
-    private readonly paymentDetailsRepository: Repository<PaymentDetailEntity>,
     @InjectRepository(PaymentMethodEntity)
     private readonly paymentMethodsRepository: Repository<PaymentMethodEntity>,
     @InjectRepository(FinancialCategoryEntity)
     private readonly financialCategoriesRepository: Repository<FinancialCategoryEntity>,
-    @InjectRepository(ExpenseEntity)
-    private readonly expensesRepository: Repository<ExpenseEntity>,
-    @InjectRepository(ExpenseDetailEntity)
-    private readonly expenseDetailsRepository: Repository<ExpenseDetailEntity>,
-    @InjectRepository(OrderEntity)
-    private readonly ordersRepository: Repository<OrderEntity>,
   ) {}
 
   async getSummary(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const payments = await this.paymentsRepository.find({
-      where: {
-        order: { quotation: { customer: { businessId: business.businessId } } },
-      },
-      relations: { paymentDetails: true },
-    });
-    const expenses = await this.expensesRepository.find({
-      where: { financialCategory: { businessId: business.businessId } },
-      relations: { expenseDetails: true },
-    });
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const payments = await manager.getRepository(PaymentEntity).find({
+        where: { businessId: business.businessId },
+        relations: { paymentDetails: true },
+      });
+      const expenses = await manager.getRepository(ExpenseEntity).find({
+        where: { businessId: business.businessId },
+      });
 
-    const totalPaid = payments.reduce(
-      (sum, payment) =>
-        sum +
-        payment.paymentDetails.reduce(
-          (detailSum, detail) => detailSum + Number(detail.subtotal),
-          0,
-        ),
-      0,
-    );
-    const totalExpenses = expenses.reduce(
-      (sum, expense) => sum + Number(expense.total),
-      0,
-    );
-
-    return {
-      totalPaid: totalPaid.toFixed(2),
-      totalExpenses: totalExpenses.toFixed(2),
-    };
-  }
-
-  async listRecords(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    const [payments, expenses] = await Promise.all([
-      this.paymentsRepository.find({
-        where: {
-          order: {
-            quotation: { customer: { businessId: business.businessId } },
-          },
-        },
-        relations: {
-          order: { quotation: { customer: true } },
-          paymentDetails: { paymentMethod: true },
-        },
-        order: { createdAt: 'DESC' },
-      }),
-      this.expensesRepository.find({
-        where: { financialCategory: { businessId: business.businessId } },
-        relations: {
-          financialCategory: true,
-          expenseDetails: { paymentMethod: true },
-        },
-        order: { createdAt: 'DESC' },
-      }),
-    ]);
-
-    const paymentRecords = payments.map((payment) => {
-      const amount = payment.paymentDetails.reduce(
-        (sum, detail) => sum + Number(detail.subtotal),
+      const totalPaid = payments.reduce(
+        (sum, payment) =>
+          sum +
+          payment.paymentDetails.reduce(
+            (detailSum, detail) => detailSum + Number(detail.subtotal),
+            0,
+          ),
+        0,
+      );
+      const totalExpenses = expenses.reduce(
+        (sum, expense) => sum + Number(expense.total),
         0,
       );
 
       return {
-        id: payment.paymentId,
-        referenceCode: payment.referenceCode,
-        sourceReferenceCode: payment.order.referenceCode,
-        entityName:
-          `${payment.order.quotation.customer.firstNames} ${payment.order.quotation.customer.lastNames ?? ''}`.trim(),
-        amount: amount.toFixed(2),
-        status: payment.status,
-        type: 'Pago',
-        createdAt: payment.createdAt.toISOString(),
+        totalPaid: totalPaid.toFixed(2),
+        totalExpenses: totalExpenses.toFixed(2),
       };
     });
+  }
 
-    const expenseRecords = expenses.map((expense) => ({
-      id: expense.expenseId,
-      referenceCode: expense.referenceCode,
-      sourceReferenceCode: expense.financialCategory.name,
-      entityName: expense.description ?? 'Sin descripción',
-      amount: expense.total,
-      status: 'Registrado',
-      type: 'Gasto',
-      createdAt: expense.createdAt.toISOString(),
-    }));
+  async listRecords(userId: string) {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const [payments, expenses] = await Promise.all([
+        manager.getRepository(PaymentEntity).find({
+          where: { businessId: business.businessId },
+          relations: {
+            order: { quotation: { customer: true } },
+            paymentDetails: { paymentMethod: true },
+          },
+          order: { createdAt: 'DESC' },
+        }),
+        manager.getRepository(ExpenseEntity).find({
+          where: { businessId: business.businessId },
+          relations: {
+            financialCategory: true,
+            expenseDetails: { paymentMethod: true },
+          },
+          order: { createdAt: 'DESC' },
+        }),
+      ]);
 
-    return [...paymentRecords, ...expenseRecords].sort((left, right) =>
-      right.createdAt.localeCompare(left.createdAt),
-    );
+      const paymentRecords = payments.map((payment) => {
+        const amount = payment.paymentDetails.reduce(
+          (sum, detail) => sum + Number(detail.subtotal),
+          0,
+        );
+
+        return {
+          id: payment.paymentId,
+          referenceCode: payment.referenceCode,
+          sourceReferenceCode: payment.order.referenceCode,
+          entityName:
+            `${payment.order.quotation.customer.firstNames} ${payment.order.quotation.customer.lastNames ?? ''}`.trim(),
+          amount: amount.toFixed(2),
+          status: payment.status,
+          type: 'Pago',
+          createdAt: payment.createdAt.toISOString(),
+          paymentDetails: payment.paymentDetails.map((detail) => ({
+            id: detail.paymentDetailId,
+            paymentMethodName: detail.paymentMethod.name,
+            amount: detail.subtotal,
+            createdAt: detail.createdAt.toISOString(),
+          })),
+        };
+      });
+
+      const expenseRecords = expenses.map((expense) => ({
+        id: expense.expenseId,
+        referenceCode: expense.referenceCode,
+        sourceReferenceCode: expense.financialCategory.name,
+        entityName: expense.description ?? 'Sin descripción',
+        amount: expense.total,
+        status: 'Registrado',
+        type: 'Gasto',
+        createdAt: expense.createdAt.toISOString(),
+      }));
+
+      return [...paymentRecords, ...expenseRecords].sort((left, right) =>
+        right.createdAt.localeCompare(left.createdAt),
+      );
+    });
+  }
+
+  async listPaymentDetails(userId: string, paymentId: string) {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const payment = await manager.getRepository(PaymentEntity).findOne({
+        where: { businessId: business.businessId, paymentId },
+        relations: { paymentDetails: { paymentMethod: true } },
+      });
+
+      if (!payment) {
+        throw new NotFoundException('Pago no encontrado');
+      }
+
+      return payment.paymentDetails
+        .map((detail) => ({
+          id: detail.paymentDetailId,
+          paymentMethodName: detail.paymentMethod.name,
+          amount: detail.subtotal,
+          createdAt: detail.createdAt.toISOString(),
+        }))
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    });
   }
 
   async listPaymentMethods(userId: string) {
-    await this.getBusinessOrThrow(userId);
-    return this.paymentMethodsRepository.find({
-      order: { name: 'ASC' },
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      return manager.getRepository(PaymentMethodEntity).find({
+        where: { businessId: business.businessId },
+        order: { name: 'ASC' },
+      });
     });
   }
 
   async createPaymentMethod(userId: string, dto: CreatePaymentMethodDto) {
-    await this.getBusinessOrThrow(userId);
-    const normalizedName = dto.name.trim();
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const normalizedName = dto.name.trim();
 
-    const existingPaymentMethod =
-      await this.findPaymentMethodByName(normalizedName);
+      const existingPaymentMethod = await this.findPaymentMethodByName(
+        business.businessId,
+        normalizedName,
+        manager,
+      );
 
-    if (existingPaymentMethod) {
-      throw new ConflictException('El método de pago ya está registrado');
-    }
+      if (existingPaymentMethod) {
+        throw new ConflictException('El método de pago ya está registrado');
+      }
 
-    const paymentMethod = this.paymentMethodsRepository.create({
-      name: normalizedName,
+      return paymentMethodsRepository.save(
+        paymentMethodsRepository.create({
+          businessId: business.businessId,
+          name: normalizedName,
+        }),
+      );
     });
-
-    return this.paymentMethodsRepository.save(paymentMethod);
   }
 
   async updatePaymentMethod(
@@ -166,53 +195,78 @@ export class FinanceService {
     paymentMethodId: string,
     dto: UpdatePaymentMethodDto,
   ) {
-    await this.getBusinessOrThrow(userId);
-    const paymentMethod = await this.getPaymentMethodOrThrow(paymentMethodId);
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const paymentMethod = await this.getPaymentMethodOrThrow(
+        business.businessId,
+        paymentMethodId,
+        manager,
+      );
 
-    if (dto.name) {
-      const normalizedName = dto.name.trim();
-      const existingPaymentMethod =
-        await this.findPaymentMethodByName(normalizedName);
+      if (dto.name) {
+        const normalizedName = dto.name.trim();
+        const existingPaymentMethod = await this.findPaymentMethodByName(
+          business.businessId,
+          normalizedName,
+          manager,
+        );
 
-      if (
-        existingPaymentMethod &&
-        existingPaymentMethod.paymentMethodId !== paymentMethod.paymentMethodId
-      ) {
-        throw new ConflictException('El método de pago ya está registrado');
+        if (
+          existingPaymentMethod &&
+          existingPaymentMethod.paymentMethodId !== paymentMethod.paymentMethodId
+        ) {
+          throw new ConflictException('El método de pago ya está registrado');
+        }
+
+        paymentMethod.name = normalizedName;
       }
 
-      paymentMethod.name = normalizedName;
-    }
-
-    return this.paymentMethodsRepository.save(paymentMethod);
+      return paymentMethodsRepository.save(paymentMethod);
+    });
   }
 
   async deletePaymentMethod(
     userId: string,
     paymentMethodId: string,
   ): Promise<void> {
-    await this.getBusinessOrThrow(userId);
-    await this.getPaymentMethodOrThrow(paymentMethodId);
-
-    const [paymentDetailsCount, expenseDetailsCount] = await Promise.all([
-      this.paymentDetailsRepository.count({ where: { paymentMethodId } }),
-      this.expenseDetailsRepository.count({ where: { paymentMethodId } }),
-    ]);
-
-    if (paymentDetailsCount > 0 || expenseDetailsCount > 0) {
-      throw new ConflictException(
-        'No se puede eliminar el método de pago porque ya tiene registros asociados',
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      await this.getPaymentMethodOrThrow(
+        business.businessId,
+        paymentMethodId,
+        manager,
       );
-    }
 
-    await this.paymentMethodsRepository.delete({ paymentMethodId });
+      const [paymentDetailsCount, expenseDetailsCount] = await Promise.all([
+        manager.getRepository(PaymentDetailEntity).count({
+          where: { businessId: business.businessId, paymentMethodId },
+        }),
+        manager.getRepository(ExpenseDetailEntity).count({
+          where: { businessId: business.businessId, paymentMethodId },
+        }),
+      ]);
+
+      if (paymentDetailsCount > 0 || expenseDetailsCount > 0) {
+        throw new ConflictException(
+          'No se puede eliminar el método de pago porque ya tiene registros asociados',
+        );
+      }
+
+      await manager.getRepository(PaymentMethodEntity).delete({
+        paymentMethodId,
+        businessId: business.businessId,
+      });
+    });
   }
 
   async listFinancialCategories(userId: string) {
-    const business = await this.getBusinessOrThrow(userId);
-    return this.financialCategoriesRepository.find({
-      where: { businessId: business.businessId },
-      order: { name: 'ASC' },
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      return manager.getRepository(FinancialCategoryEntity).find({
+        where: { businessId: business.businessId },
+        order: { name: 'ASC' },
+      });
     });
   }
 
@@ -220,24 +274,30 @@ export class FinanceService {
     userId: string,
     dto: CreateFinancialCategoryDto,
   ) {
-    const business = await this.getBusinessOrThrow(userId);
-    const normalizedName = dto.name.trim();
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const financialCategoriesRepository =
+        manager.getRepository(FinancialCategoryEntity);
+      const normalizedName = dto.name.trim();
+      const existingCategory = await this.findFinancialCategoryByName(
+        business.businessId,
+        normalizedName,
+        manager,
+      );
 
-    const existingCategory = await this.findFinancialCategoryByName(
-      business.businessId,
-      normalizedName,
-    );
+      if (existingCategory) {
+        throw new ConflictException(
+          'La categoría financiera ya está registrada',
+        );
+      }
 
-    if (existingCategory) {
-      throw new ConflictException('La categoría financiera ya está registrada');
-    }
-
-    const financialCategory = this.financialCategoriesRepository.create({
-      businessId: business.businessId,
-      name: normalizedName,
+      return financialCategoriesRepository.save(
+        financialCategoriesRepository.create({
+          businessId: business.businessId,
+          name: normalizedName,
+        }),
+      );
     });
-
-    return this.financialCategoriesRepository.save(financialCategory);
   }
 
   async updateFinancialCategory(
@@ -245,206 +305,247 @@ export class FinanceService {
     financialCategoryId: string,
     dto: UpdateFinancialCategoryDto,
   ) {
-    const business = await this.getBusinessOrThrow(userId);
-    const financialCategory = await this.getFinancialCategoryOrThrow(
-      business.businessId,
-      financialCategoryId,
-    );
-
-    if (dto.name) {
-      const normalizedName = dto.name.trim();
-      const existingCategory = await this.findFinancialCategoryByName(
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const financialCategoriesRepository =
+        manager.getRepository(FinancialCategoryEntity);
+      const financialCategory = await this.getFinancialCategoryOrThrow(
         business.businessId,
-        normalizedName,
+        financialCategoryId,
+        manager,
       );
 
-      if (
-        existingCategory &&
-        existingCategory.financialCategoryId !==
-          financialCategory.financialCategoryId
-      ) {
-        throw new ConflictException(
-          'La categoría financiera ya está registrada',
+      if (dto.name) {
+        const normalizedName = dto.name.trim();
+        const existingCategory = await this.findFinancialCategoryByName(
+          business.businessId,
+          normalizedName,
+          manager,
         );
+
+        if (
+          existingCategory &&
+          existingCategory.financialCategoryId !==
+            financialCategory.financialCategoryId
+        ) {
+          throw new ConflictException(
+            'La categoría financiera ya está registrada',
+          );
+        }
+
+        financialCategory.name = normalizedName;
       }
 
-      financialCategory.name = normalizedName;
-    }
-
-    return this.financialCategoriesRepository.save(financialCategory);
+      return financialCategoriesRepository.save(financialCategory);
+    });
   }
 
   async deleteFinancialCategory(
     userId: string,
     financialCategoryId: string,
   ): Promise<void> {
-    const business = await this.getBusinessOrThrow(userId);
-    await this.getFinancialCategoryOrThrow(
-      business.businessId,
-      financialCategoryId,
-    );
-
-    const expensesCount = await this.expensesRepository.count({
-      where: { financialCategoryId },
-    });
-
-    if (expensesCount > 0) {
-      throw new ConflictException(
-        'No se puede eliminar la categoría financiera porque ya tiene gastos asociados',
+    await this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      await this.getFinancialCategoryOrThrow(
+        business.businessId,
+        financialCategoryId,
+        manager,
       );
-    }
 
-    await this.financialCategoriesRepository.delete({
-      financialCategoryId,
-      businessId: business.businessId,
+      const expensesCount = await manager.getRepository(ExpenseEntity).count({
+        where: { businessId: business.businessId, financialCategoryId },
+      });
+
+      if (expensesCount > 0) {
+        throw new ConflictException(
+          'No se puede eliminar la categoría financiera porque ya tiene gastos asociados',
+        );
+      }
+
+      await manager.getRepository(FinancialCategoryEntity).delete({
+        financialCategoryId,
+        businessId: business.businessId,
+      });
     });
   }
 
   async createPayment(userId: string, dto: CreatePaymentDto) {
-    const business = await this.getBusinessOrThrow(userId);
-    const order = await this.ordersRepository.findOne({
-      where: {
-        orderId: dto.orderId,
-        quotation: { customer: { businessId: business.businessId } },
-      },
-      relations: { quotation: true },
-    });
-    if (!order) {
-      throw new BadRequestException('Pedido no pertenece al negocio');
-    }
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const ordersRepository = manager.getRepository(OrderEntity);
+      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const paymentsRepository = manager.getRepository(PaymentEntity);
+      const paymentDetailsRepository = manager.getRepository(PaymentDetailEntity);
+      const order = await ordersRepository.findOne({
+        where: { orderId: dto.orderId, businessId: business.businessId },
+        relations: { quotation: true, payment: { paymentDetails: true } },
+      });
 
-    const paymentMethod = await this.paymentMethodsRepository.findOne({
-      where: {
-        paymentMethodId: dto.paymentMethodId,
-      },
-    });
-    if (!paymentMethod) {
-      throw new BadRequestException('Método de pago inválido');
-    }
+      if (!order) {
+        throw new BadRequestException('Pedido no pertenece al negocio');
+      }
 
-    const amount = Number(dto.amount);
-    const paidAmount = await this.sumPaymentsForOrder(order.orderId);
-    const remainingTotal = Math.max(
-      Number(order.quotation.total) - paidAmount - amount,
-      0,
-    );
-    const status =
-      remainingTotal === 0
-        ? PaymentStatus.Paid
-        : paidAmount + amount > 0
-          ? PaymentStatus.Advance
-          : PaymentStatus.Unpaid;
+      const paymentMethod = await paymentMethodsRepository.findOne({
+        where: {
+          paymentMethodId: dto.paymentMethodId,
+          businessId: business.businessId,
+        },
+      });
 
-    const payment = await this.dataSource.transaction(async (manager) => {
-      const paymentRepository = manager.getRepository(PaymentEntity);
-      const paymentDetailRepository =
-        manager.getRepository(PaymentDetailEntity);
-      const referenceCode = await this.generateNextReferenceCode(
-        business.businessId,
-        'PAG',
-        'payments',
-        manager,
+      if (!paymentMethod) {
+        throw new BadRequestException('Método de pago inválido');
+      }
+
+      const amount = Number(dto.amount);
+      const paymentSummary = order.payment;
+
+      if (!paymentSummary) {
+        throw new BadRequestException(
+          'El pedido no tiene un resumen de pago inicializado',
+        );
+      }
+
+      if (amount <= 0) {
+        throw new BadRequestException('El monto debe ser mayor a cero');
+      }
+
+      if (amount > Number(paymentSummary.remainingTotal)) {
+        throw new BadRequestException('El abono supera el saldo pendiente');
+      }
+
+      const managedPayment = await paymentsRepository.findOneOrFail({
+        where: {
+          paymentId: paymentSummary.paymentId,
+          businessId: business.businessId,
+        },
+      });
+
+      const remainingTotal = Math.max(
+        Number(managedPayment.remainingTotal) - amount,
+        0,
       );
 
-      const createdPayment = await paymentRepository.save(
-        paymentRepository.create({
-          orderId: order.orderId,
-          status,
-          remainingTotal: remainingTotal.toFixed(2),
-          referenceCode,
-        }),
-      );
+      managedPayment.remainingTotal = remainingTotal.toFixed(2);
+      managedPayment.status =
+        remainingTotal === 0 ? PaymentStatus.Paid : PaymentStatus.Advance;
 
-      await paymentDetailRepository.save(
-        paymentDetailRepository.create({
-          paymentId: createdPayment.paymentId,
+      await paymentsRepository.save(managedPayment);
+
+      await paymentDetailsRepository.save(
+        paymentDetailsRepository.create({
+          businessId: business.businessId,
+          paymentId: managedPayment.paymentId,
           paymentMethodId: paymentMethod.paymentMethodId,
           subtotal: dto.amount,
         }),
       );
 
-      return createdPayment;
-    });
+      await this.auditLogsService.createWithManager(manager, {
+        actorUserId: userId,
+        businessId: business.businessId,
+        action: AuditAction.Update,
+        tableName: 'payments',
+        recordId: managedPayment.paymentId,
+      });
 
-    return {
-      id: payment.paymentId,
-      referenceCode: payment.referenceCode,
-      status: payment.status,
-      remainingTotal: payment.remainingTotal,
-    };
+      return {
+        id: managedPayment.paymentId,
+        referenceCode: managedPayment.referenceCode,
+        status: managedPayment.status,
+        remainingTotal: managedPayment.remainingTotal,
+      };
+    });
   }
 
   async createExpense(userId: string, dto: CreateExpenseDto) {
-    const business = await this.getBusinessOrThrow(userId);
-    const financialCategory = await this.financialCategoriesRepository.findOne({
-      where: {
-        financialCategoryId: dto.financialCategoryId,
-        businessId: business.businessId,
-      },
-    });
-    if (!financialCategory) {
-      throw new BadRequestException('Categoría financiera inválida');
-    }
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const financialCategoriesRepository =
+        manager.getRepository(FinancialCategoryEntity);
+      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const expensesRepository = manager.getRepository(ExpenseEntity);
+      const expenseDetailsRepository = manager.getRepository(ExpenseDetailEntity);
+      const financialCategory = await financialCategoriesRepository.findOne({
+        where: {
+          financialCategoryId: dto.financialCategoryId,
+          businessId: business.businessId,
+        },
+      });
 
-    const paymentMethod = await this.paymentMethodsRepository.findOne({
-      where: {
-        paymentMethodId: dto.paymentMethodId,
-      },
-    });
-    if (!paymentMethod) {
-      throw new BadRequestException('Método de pago inválido');
-    }
+      if (!financialCategory) {
+        throw new BadRequestException('Categoría financiera inválida');
+      }
 
-    const expense = await this.dataSource.transaction(async (manager) => {
-      const expenseRepository = manager.getRepository(ExpenseEntity);
-      const expenseDetailRepository =
-        manager.getRepository(ExpenseDetailEntity);
-      const referenceCode = await this.generateNextReferenceCode(
-        business.businessId,
-        'GAS',
-        'expenses',
-        manager,
-      );
+      const paymentMethod = await paymentMethodsRepository.findOne({
+        where: {
+          paymentMethodId: dto.paymentMethodId,
+          businessId: business.businessId,
+        },
+      });
 
-      const createdExpense = await expenseRepository.save(
-        expenseRepository.create({
+      if (!paymentMethod) {
+        throw new BadRequestException('Método de pago inválido');
+      }
+
+      const createdExpense = await expensesRepository.save(
+        expensesRepository.create({
+          businessId: business.businessId,
           financialCategoryId: financialCategory.financialCategoryId,
           description: dto.description?.trim() || null,
           total: dto.amount,
-          referenceCode,
         }),
       );
 
-      await expenseDetailRepository.save(
-        expenseDetailRepository.create({
+      await expenseDetailsRepository.save(
+        expenseDetailsRepository.create({
+          businessId: business.businessId,
           expenseId: createdExpense.expenseId,
           paymentMethodId: paymentMethod.paymentMethodId,
           subtotal: dto.amount,
         }),
       );
 
-      return createdExpense;
-    });
+      const expense = await expensesRepository.findOneOrFail({
+        where: {
+          expenseId: createdExpense.expenseId,
+          businessId: business.businessId,
+        },
+      });
 
-    return {
-      id: expense.expenseId,
-      referenceCode: expense.referenceCode,
-      total: expense.total,
-    };
+      await this.auditLogsService.createWithManager(manager, {
+        actorUserId: userId,
+        businessId: business.businessId,
+        action: AuditAction.Create,
+        tableName: 'expenses',
+        recordId: expense.expenseId,
+      });
+
+      return {
+        id: expense.expenseId,
+        referenceCode: expense.referenceCode,
+        total: expense.total,
+      };
+    });
   }
 
-  private async getBusinessOrThrow(userId: string) {
+  private async getBusinessOrThrow(userId: string, manager?: EntityManager) {
     const business =
-      await this.usersService.findPrimaryBusinessByUserId(userId);
+      await this.usersService.findPrimaryBusinessByUserId(userId, manager);
     if (!business) {
       throw new BadRequestException('Business profile is not configured');
     }
     return business;
   }
 
-  private async getPaymentMethodOrThrow(paymentMethodId: string) {
-    const paymentMethod = await this.paymentMethodsRepository.findOne({
-      where: { paymentMethodId },
+  private async getPaymentMethodOrThrow(
+    businessId: string,
+    paymentMethodId: string,
+    manager?: EntityManager,
+  ) {
+    const paymentMethodsRepository =
+      manager?.getRepository(PaymentMethodEntity) ?? this.paymentMethodsRepository;
+    const paymentMethod = await paymentMethodsRepository.findOne({
+      where: { paymentMethodId, businessId },
     });
 
     if (!paymentMethod) {
@@ -457,8 +558,12 @@ export class FinanceService {
   private async getFinancialCategoryOrThrow(
     businessId: string,
     financialCategoryId: string,
+    manager?: EntityManager,
   ) {
-    const financialCategory = await this.financialCategoriesRepository.findOne({
+    const financialCategoriesRepository =
+      manager?.getRepository(FinancialCategoryEntity) ??
+      this.financialCategoriesRepository;
+    const financialCategory = await financialCategoriesRepository.findOne({
       where: { financialCategoryId, businessId },
     });
 
@@ -469,79 +574,38 @@ export class FinanceService {
     return financialCategory;
   }
 
-  private findPaymentMethodByName(name: string) {
-    return this.paymentMethodsRepository
+  private findPaymentMethodByName(
+    businessId: string,
+    name: string,
+    manager?: EntityManager,
+  ) {
+    const paymentMethodsRepository =
+      manager?.getRepository(PaymentMethodEntity) ?? this.paymentMethodsRepository;
+
+    return paymentMethodsRepository
       .createQueryBuilder('paymentMethod')
-      .where('LOWER(paymentMethod.name) = LOWER(:name)', {
+      .where('paymentMethod.business_id = :businessId', { businessId })
+      .andWhere('LOWER(paymentMethod.name) = LOWER(:name)', {
         name: name.trim(),
       })
       .getOne();
   }
 
-  private findFinancialCategoryByName(businessId: string, name: string) {
-    return this.financialCategoriesRepository
+  private findFinancialCategoryByName(
+    businessId: string,
+    name: string,
+    manager?: EntityManager,
+  ) {
+    const financialCategoriesRepository =
+      manager?.getRepository(FinancialCategoryEntity) ??
+      this.financialCategoriesRepository;
+
+    return financialCategoriesRepository
       .createQueryBuilder('financialCategory')
       .where('financialCategory.business_id = :businessId', { businessId })
       .andWhere('LOWER(financialCategory.name) = LOWER(:name)', {
         name: name.trim(),
       })
       .getOne();
-  }
-
-  private async sumPaymentsForOrder(orderId: string) {
-    const payments = await this.paymentsRepository.find({
-      where: { orderId },
-      relations: { paymentDetails: true },
-    });
-
-    return payments.reduce(
-      (sum, payment) =>
-        sum +
-        payment.paymentDetails.reduce(
-          (detailSum, detail) => detailSum + Number(detail.subtotal),
-          0,
-        ),
-      0,
-    );
-  }
-
-  private async generateNextReferenceCode(
-    businessId: string,
-    prefix: 'PAG' | 'GAS',
-    tableName: 'payments' | 'expenses',
-    manager: EntityManager,
-  ) {
-    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-      `${businessId}:${prefix}`,
-    ]);
-
-    const [row] = await manager.query<
-      { lastReferenceNumber: number | string | null }[]
-    >(
-      tableName === 'payments'
-        ? `
-            SELECT COALESCE(
-              MAX(CAST(SUBSTRING(p.reference_code FROM '${prefix}-(\\d+)$') AS INTEGER)),
-              0
-            ) AS "lastReferenceNumber"
-            FROM "payments" p
-            INNER JOIN "orders" o ON o."order_id" = p."order_id"
-            INNER JOIN "quotations" q ON q."quotation_id" = o."quotation_id"
-            INNER JOIN "customers" c ON c."customer_id" = q."customer_id"
-            WHERE c."business_id" = $1
-          `
-        : `
-            SELECT COALESCE(
-              MAX(CAST(SUBSTRING(e.reference_code FROM '${prefix}-(\\d+)$') AS INTEGER)),
-              0
-            ) AS "lastReferenceNumber"
-            FROM "expenses" e
-            INNER JOIN "financial_categories" fc ON fc."financial_category_id" = e."financial_category_id"
-            WHERE fc."business_id" = $1
-          `,
-      [businessId],
-    );
-
-    return `${prefix}-${Number(row?.lastReferenceNumber ?? 0) + 1}`;
   }
 }

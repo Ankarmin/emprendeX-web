@@ -1,35 +1,66 @@
 import {
+  Check,
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
-  ManyToOne,
   OneToOne,
-  PrimaryGeneratedColumn,
+  PrimaryColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { CategoryEntity } from './category.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { ItemClass } from '../../database/database.enums';
 import { ItemEntity } from './item.entity';
 
 @Entity({ name: 'services' })
-export class ProductosServiciosEntity {
-  @PrimaryGeneratedColumn('uuid', { name: 'service_id' })
-  serviceId!: string;
-
-  @Column({ type: 'uuid', name: 'item_id', unique: true })
+@Check('chk_service_item_class', `"item_class" = 'Servicio'`)
+export class ServiceEntity {
+  @ApiProperty({
+    description: 'Identificador del ítem (FK a items)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @PrimaryColumn({ type: 'uuid', name: 'item_id' })
   itemId!: string;
 
-  @Column({ type: 'uuid', name: 'category_id' })
-  categoryId!: string;
+  @ApiProperty({
+    description: 'Identificador del negocio',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @Column({ type: 'uuid', name: 'business_id' })
+  businessId!: string;
+
+  @ApiProperty({
+    description: 'Clase del ítem (siempre SERVICIO)',
+    example: 'SERVICIO',
+  })
+  @Column({
+    type: 'enum',
+    name: 'item_class',
+    enum: ItemClass,
+    enumName: 'item_class_enum',
+    default: ItemClass.Service,
+  })
+  itemClass!: ItemClass;
 
   @OneToOne(() => ItemEntity, (item) => item.service, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'item_id', referencedColumnName: 'itemId' })
+  @JoinColumn([
+    { name: 'item_id', referencedColumnName: 'itemId' },
+    { name: 'business_id', referencedColumnName: 'businessId' },
+    { name: 'item_class', referencedColumnName: 'itemClass' },
+  ])
   item!: ItemEntity;
 
-  @ManyToOne(() => CategoryEntity, (category) => category.services, {
-    onDelete: 'CASCADE',
+  @ApiProperty({
+    description: 'Fecha de creación del registro',
+    example: '2026-06-21T12:00:00.000Z',
   })
-  @JoinColumn({ name: 'category_id', referencedColumnName: 'categoryId' })
-  category!: CategoryEntity;
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
 
-  @Column({ type: 'varchar', name: 'reference_code', length: 100 })
-  referenceCode!: string;
+  @ApiProperty({
+    description: 'Fecha de última actualización del registro',
+    example: '2026-06-21T12:00:00.000Z',
+  })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt!: Date;
 }

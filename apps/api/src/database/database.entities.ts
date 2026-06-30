@@ -1,9 +1,11 @@
+import { AuditLogEntity } from '../audit-logs/entities/audit-log.entity';
 import { Business } from '../businesses/entities/business.entity';
 import { BusinessModule } from '../businesses/entities/business-module.entity';
+import { BusinessPreferencesEntity } from '../businesses/entities/business-preferences.entity';
 import { CategoryEntity } from '../catalog/entities/category.entity';
 import { ItemEntity } from '../catalog/entities/item.entity';
 import { ProductEntity } from '../catalog/entities/product.entity';
-import { ProductosServiciosEntity } from '../catalog/entities/service.entity';
+import { ServiceEntity } from '../catalog/entities/service.entity';
 import { UnitEntity } from '../catalog/entities/unit.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { ExpenseDetailEntity } from '../expenses/entities/expense-detail.entity';
@@ -22,11 +24,13 @@ import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { User } from '../users/entities/user.entity';
 
 export const databaseEntities = [
+  AuditLogEntity,
   User,
   Plan,
   PlanPrice,
   Subscription,
   Business,
+  BusinessPreferencesEntity,
   UnitEntity,
   CategoryEntity,
   Customer,
@@ -37,7 +41,7 @@ export const databaseEntities = [
   BusinessModule,
   ItemEntity,
   ProductEntity,
-  ProductosServiciosEntity,
+  ServiceEntity,
   QuotationEntity,
   QuotationDetailEntity,
   OrderEntity,

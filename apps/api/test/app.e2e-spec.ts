@@ -25,14 +25,26 @@ describe('AppModule (e2e)', () => {
     jest.doMock('../src/auth/auth.module', () => ({
       AuthModule: createEmptyModule(),
     }));
+    jest.doMock(
+      '../src/business-preferences/business-preferences.module',
+      () => ({
+        BusinessPreferencesModule: createEmptyModule(),
+      }),
+    );
     jest.doMock('../src/catalog/catalog.module', () => ({
-      ProductosServiciosModule: createEmptyModule(),
+      CatalogModule: createEmptyModule(),
+    }));
+    jest.doMock('../src/audit-logs/audit-logs.module', () => ({
+      AuditLogsModule: createEmptyModule(),
     }));
     jest.doMock('../src/calendar/calendar.module', () => ({
       CalendarModule: createEmptyModule(),
     }));
     jest.doMock('../src/customers/customers.module', () => ({
       CustomersModule: createEmptyModule(),
+    }));
+    jest.doMock('../src/database/rls/rls.module', () => ({
+      RlsModule: createEmptyModule(),
     }));
     jest.doMock('../src/finance/finance.module', () => ({
       FinanceModule: createEmptyModule(),
@@ -42,6 +54,20 @@ describe('AppModule (e2e)', () => {
     }));
     jest.doMock('../src/plans/plans.module', () => ({
       PlansModule: createEmptyModule(),
+    }));
+    jest.doMock('../src/public-catalog/public-catalog.module', () => ({
+      PublicCatalogModule: createEmptyModule(),
+    }));
+    jest.doMock('@nestjs/throttler', () => ({
+      ThrottlerGuard: class MockThrottlerGuard {
+        canActivate() {
+          return true;
+        }
+      },
+      ThrottlerModule: {
+        forRoot: jest.fn(() => createEmptyModule()),
+      },
+      minutes: jest.fn((value: number) => value * 60_000),
     }));
     jest.doMock('../src/reports/reports.module', () => ({
       ReportsModule: createEmptyModule(),

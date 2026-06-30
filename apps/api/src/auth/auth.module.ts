@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -21,6 +22,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         },
       }),
     }),
+    AuditLogsModule,
     UsersModule,
   ],
   controllers: [AuthController],

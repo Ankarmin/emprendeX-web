@@ -1,304 +1,399 @@
 # EmprendeX
 
-Monorepo de EmprendeX gestionado con `pnpm` y `turbo`.
+Guía de arranque local para trabajar con estos dos repositorios:
 
-Actualmente el repositorio contiene:
+- `C:\Proyectos\emprendeX-web`
+- `C:\Proyectos\emprendeX-mobile`
 
-- `apps/api`: backend principal en NestJS con PostgreSQL y TypeORM
-- `apps/web`: frontend web en Next.js 16, todavia en estado base/scaffold
+`emprendeX-web` contiene:
 
-## Estado actual
+- `apps/api`: backend NestJS + PostgreSQL
+- `apps/web`: frontend web Next.js
 
-El backend ya esta integrado en el monorepo y es la parte operativa principal del proyecto.
+`emprendeX-mobile` contiene la app mobile en Expo.
 
-Capacidades backend actualmente presentes:
+## Estructura local obligatoria
 
-- autenticacion con JWT
-- registro e inicio de sesion
-- onboarding inicial
-- catalogo
-- clientes
-- ventas
-- finanzas
-- planes
-- reportes
-- calendario
-- healthcheck
-
-El frontend `apps/web` todavia no representa el producto final y sigue siendo una base inicial de Next.js.
-
-## Stack
-
-- Node.js 18+
-- pnpm 9
-- Turborepo
-- NestJS 11
-- TypeORM
-- PostgreSQL 16
-- Next.js 16
-- React 19
-
-## Estructura
+Los dos repositorios deben estar en la misma carpeta padre.
 
 ```text
-.
-|- apps/
-|  |- api/
-|  |  |- src/
-|  |  |- test/
-|  |  |- .env
-|  |  |- .env.example
-|  |  \- package.json
-|  \- web/
-|     |- app/
-|     \- package.json
-|- docker-compose.yaml
-|- Dockerfile
-|- package.json
-|- pnpm-workspace.yaml
-\- turbo.json
+C:\Proyectos\
+|- emprendeX-web
+\- emprendeX-mobile
 ```
 
-## Regla operativa
+Esto es importante porque:
 
-Todos los comandos del proyecto deben ejecutarse desde la raiz del repositorio.
+- `C:\Proyectos\emprendeX-web\project.code-workspace` apunta a `..\emprendeX-mobile`
+- `pnpm install` en `emprendeX-web` intenta instalar dependencias del mobile vecino
+- `pnpm dev` en `emprendeX-web` intenta levantar también `emprendeX-mobile`
 
-No se recomienda operar entrando a `apps/api` o `apps/web` para tareas normales del dia a dia.
+## Workspace recomendado
+
+De preferencia abre este archivo en VS Code:
+
+```text
+C:\Proyectos\emprendeX-web\project.code-workspace
+```
+
+Ese workspace abre al mismo tiempo:
+
+- `emprendeX-web`
+- `emprendeX-mobile`
+
+También deja listas tareas y configuraciones compartidas para backend y mobile.
 
 ## Requisitos
 
-- Node.js `>= 18`
-- pnpm `9.x`
-- Docker Desktop si vas a usar contenedores
+- Node.js 22 LTS recomendado
+- `pnpm` 11.5.1
+- `npm` disponible para el proyecto mobile
+- Docker Desktop
+- Acceso al drive compartido del grupo de desarrollo
+- TablePlus, DBeaver, pgAdmin o cliente equivalente para ejecutar los scripts SQL
 
-## Instalacion
+## Flujo recomendado
+
+Este es el flujo recomendado para levantar todo por primera vez.
+
+1. Verifica que existan ambos repositorios en la misma carpeta padre.
+2. Abre `C:\Proyectos\emprendeX-web\project.code-workspace`.
+3. Desde `C:\Proyectos\emprendeX-web`, instala dependencias:
 
 ```bash
-pnpm install
+pnpm i
 ```
+
+`pnpm i` en `emprendeX-web` hace dos cosas:
+
+- instala las dependencias del monorepo `emprendeX-web`
+- si existe `C:\Proyectos\emprendeX-mobile`, ejecuta también `npm install` dentro del mobile
+
+4. Configura los `.env` copiando las plantillas:
+
+```powershell
+# Desde C:\Proyectos\emprendeX-web:
+Copy-Item "apps\api\.env.example" "apps\api\.env.local"
+Copy-Item "apps\web\.env.example" "apps\web\.env.local"
+
+# Desde C:\Proyectos\emprendeX-mobile:
+Copy-Item ".env.example" ".env.local"
+```
+
+> Las plantillas ya contienen los valores correctos para desarrollo local.
+> Solo necesitas editar `JWT_SECRET` en `apps/api/.env.local` por un valor seguro si lo deseas.
+
+5. Levanta todo desde `C:\Proyectos\emprendeX-web`:
+
+```bash
+pnpm dev
+```
+
+6. Cuando PostgreSQL local ya esté arriba, entra al drive compartido del grupo de desarrollo y ejecuta los scripts SQL en este orden exacto:
+
+```text
+1. TABLAS EMPRENDEX
+2. DATOS EMPRENDEX
+```
+
+7. Verifica los servicios:
+
+- API: `http://localhost:3000/api/v1/health`
+- Web: `http://localhost:3001`
+- Mobile: revisa el QR y la salida de Expo en la terminal
+
+## Qué hace `pnpm dev`
+
+Ejecutado desde `C:\Proyectos\emprendeX-web`, `pnpm dev` levanta el stack local completo:
+
+- levanta PostgreSQL con Docker
+- levanta la API NestJS en local con hot reload (`nest start --watch`)
+- levanta la web Next.js en `http://localhost:3001`
+- si existe `C:\Proyectos\emprendeX-mobile`, ejecuta `npm run start` en el mobile
+- al hacer `Ctrl+C`, detiene todos los procesos y ejecuta `docker compose down`
+
+Puertos locales esperados:
+
+- API: `3000`
+- Web: `3001`
+- PostgreSQL: `5433`
+- Expo / Metro: `8081`
+
+Si alguno de esos puertos está ocupado, `pnpm dev` no podrá arrancar correctamente.
+
+## Comandos principales
+
+### Stack completo
+
+```bash
+pnpm dev              # Stack local completo (DB Docker + API local + web + mobile)
+pnpm dev -c           # Igual + limpieza profunda de cachés
+pnpm dev:railway      # Solo mobile contra API de Railway (sin Docker, sin API local, sin web)
+pnpm dev:railway -c   # Railway + limpieza profunda de cachés
+```
+
+### Solo componentes
+
+```bash
+pnpm dev:api          # Solo API NestJS (hot reload, sin Docker)
+pnpm docker:db        # Solo base de datos PostgreSQL en Docker
+pnpm docker:db:down   # Detener base de datos
+pnpm docker:logs      # Ver logs de PostgreSQL
+```
+
+### Validaciones
+
+```bash
+pnpm build            # Build de todos los paquetes
+pnpm lint             # Lint de todos los paquetes
+pnpm check-types      # TypeScript type-check
+pnpm test             # Tests
+```
+
+### Solo API
+
+```bash
+pnpm build:api
+pnpm lint:api
+pnpm check-types:api
+pnpm test:api
+pnpm test:api:e2e
+```
+
+### Solo web
+
+```bash
+pnpm --filter ./apps/web dev:share   # Next.js expuesto en red
+pnpm test:web
+```
+
+### Mobile (desde `C:\Proyectos\emprendeX-mobile`)
+
+```bash
+npm run start
+npm run android
+npm run ios
+npm run web
+npm run lint
+npm test -- --passWithNoTests
+```
+
+## Modos de desarrollo
+
+### Modo local (`pnpm dev`)
+
+Todo corre en tu máquina. Solo PostgreSQL va en Docker:
+
+```
+┌─────────────┐    ┌──────────┐    ┌──────────┐
+│  Docker DB  │    │  NestJS  │    │  Next.js │    ┌───────┐
+│  :5433      │◄───│  :3000   │◄───│  :3001   │    │ Expo  │
+│  postgres   │    │  watch   │    │  dev     │◄───│ :8081 │
+└─────────────┘    └──────────┘    └──────────┘    └───────┘
+```
+
+El script `dev-local.mjs` copia automáticamente `mobile/.env.example` → `mobile/.env.local` para restaurar la configuración local del mobile.
+
+### Modo Railway (`pnpm dev:railway`)
+
+Solo la app mobile se conecta a la API desplegada en Railway. El backend, la base de datos y la web ya están en Railway/Vercel, por lo que no se usa Docker ni API local:
+
+```
+┌──────────────────┐
+│  Railway API     │
+│  :443 (HTTPS)    │
+└────────┬─────────┘
+         │
+    ┌────┴────┐
+    │  Expo   │
+    │  :8081  │
+    └─────────┘
+```
+
+El script `dev-railway.mjs` copia `mobile/.env.railway.example` → `mobile/.env.local` y arranca Expo.
+
+**Para configurar Railway por primera vez:**
+
+1. Edita `emprendeX-mobile/.env.railway.example` con la URL pública de tu API en Railway.
+2. Ejecuta `pnpm dev:railway`.
+
+La URL se guarda en ese archivo y no necesitas volver a configurarla.
 
 ## Variables de entorno
 
-Las variables del backend viven en `apps/api`.
+### Backend (`apps/api`)
 
-Archivo plantilla:
+El backend lee `apps/api/.env.local`.
 
-```bash
-apps/api/.env.example
+**No** uses `apps/api/.env`. Usa como base `apps/api/.env.example` y cópialo a `.env.local`.
+
+El archivo `.env.example` ya está documentado con secciones LOCAL y RAILWAY. Para desarrollo local solo necesitas:
+
+```env
+DATABASE_PUBLIC_URL=postgresql://postgres:password@localhost:5433/emprendex
+DATABASE_SSL=false
+CORS_ORIGINS=http://localhost:3001,http://localhost:8081,http://localhost:19006
+WEB_PUBLIC_URL=http://localhost:3001
+
+DATABASE_URL=
+DATABASE_TARGET=auto
+PORT=3000
+
+JWT_SECRET=dev-secret-change-in-production-abc123
+JWT_EXPIRES_IN=86400
+
+PUBLIC_CATALOG_READ_TTL_MINUTES=1
+PUBLIC_CATALOG_READ_LIMIT=60
+PUBLIC_CATALOG_SUBMIT_TTL_MINUTES=10
+PUBLIC_CATALOG_SUBMIT_LIMIT=5
+PUBLIC_CATALOG_MAX_ITEMS=25
+PUBLIC_CATALOG_MAX_ITEM_QUANTITY=100
+
+PUBLIC_CATALOG_TURNSTILE_SECRET_KEY=
 ```
 
-Archivo local esperado:
+**Una sola variable de conexión:** `DATABASE_PUBLIC_URL` reemplaza a los 5 `POSTGRES_*` individuales. Con `DATABASE_TARGET=auto` (default), el sistema detecta la URL directa y la usa sin necesidad de configurar `POSTGRES_HOST`, `POSTGRES_PORT`, etc.
 
-```bash
-apps/api/.env
+**Para Railway:** Railway asigna `DATABASE_URL` y `DATABASE_PUBLIC_URL` automáticamente. Solo necesitas configurar en el dashboard: `DATABASE_SSL=true`, `JWT_SECRET`, `CORS_ORIGINS` (con la URL de Vercel) y `WEB_PUBLIC_URL`.
+
+### Frontend web (`apps/web`)
+
+La web lee `apps/web/.env.local`. Para desarrollo local:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
+NEXT_ALLOWED_DEV_ORIGINS=
+NEXT_PUBLIC_DEFAULT_CURRENCY_SYMBOL=S/
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 ```
 
-Variables principales:
+**Para Vercel:** Configura `NEXT_PUBLIC_API_BASE_URL` con la URL de Railway en Settings > Environment Variables.
 
-- `PORT`
-- `POSTGRES_HOST`
-- `POSTGRES_PORT`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `DATABASE_PUBLIC_URL`
-- `DATABASE_SSL`
-- `JWT_SECRET`
-- `JWT_EXPIRES_IN`
-- `CORS_ORIGINS`
-- `APP_PUBLIC_URL`
+### Mobile (`emprendeX-mobile`)
 
-## Desarrollo
+La app resuelve la API en este orden:
 
-Levanta todos los paquetes que tengan script `dev` en el workspace:
+1. `EXPO_PUBLIC_API_BASE_URL` (si está definida, se usa directamente)
+2. `EXPO_PUBLIC_API_TARGET=railway` → usa `EXPO_PUBLIC_API_RAILWAY_BASE_URL`
+3. `EXPO_PUBLIC_API_TARGET=local` → construye URL desde `HOST` + `PORT` + `PATH`
+4. `EXPO_PUBLIC_API_TARGET=auto` → prueba local primero, luego railway
 
-```bash
-pnpm dev
+**Desarrollo local** (`.env.local`):
+
+```env
+EXPO_PUBLIC_API_TARGET=local
+EXPO_PUBLIC_API_HOST=192.168.18.9
+EXPO_PUBLIC_API_PORT=3000
+EXPO_PUBLIC_API_SCHEME=http
+EXPO_PUBLIC_API_PATH=/api/v1
+EXPO_PUBLIC_DEFAULT_CURRENCY_SYMBOL=S/
+EXPO_PUBLIC_PASSWORD_MIN_LENGTH=8
 ```
 
-Levanta solo el backend:
+**Railway** (`.env.railway.example`):
 
-```bash
-pnpm run dev:api
+```env
+EXPO_PUBLIC_API_TARGET=railway
+EXPO_PUBLIC_API_RAILWAY_BASE_URL=https://api-production-xxxx.up.railway.app/api/v1
+EXPO_PUBLIC_DEFAULT_CURRENCY_SYMBOL=S/
+EXPO_PUBLIC_PASSWORD_MIN_LENGTH=8
 ```
 
-Levanta solo el frontend web:
+> `pnpm dev:railway` copia automáticamente `.env.railway.example` → `.env.local`.
+> `pnpm dev` (`dev:local`) restaura la configuración local desde `.env.example`.
 
-```bash
-pnpm --filter ./apps/web dev
-```
+**Notas para mobile:**
 
-## Docker
+- `EXPO_PUBLIC_API_HOST` debe ser la IP LAN de tu máquina si pruebas desde celular físico.
+- Para emulador, cambia a `localhost` (o `10.0.2.2` en Android).
+- Si cambias variables de entorno del mobile, reinicia Expo.
 
-La infraestructura Docker esta centralizada en la raiz:
+## Base de datos local
 
-- `docker-compose.yaml`
-- `Dockerfile`
-- `.dockerignore`
+La base local corre en Docker Compose desde `emprendeX-web`.
 
-Las variables usadas por Docker para el backend se leen desde `apps/api/.env`.
-
-Levantar API + PostgreSQL:
-
-```bash
-pnpm run docker:up
-```
-
-Levantar en segundo plano:
-
-```bash
-pnpm run docker:up:detached
-```
-
-Ver logs:
-
-```bash
-pnpm run docker:logs
-```
-
-Apagar stack:
-
-```bash
-pnpm run docker:down
-```
-
-## Scripts raiz
-
-### Generales
-
-```bash
-pnpm dev
-pnpm build
-pnpm lint
-pnpm check-types
-pnpm format
-```
-
-### Backend
-
-```bash
-pnpm run dev:api
-pnpm run start:api
-pnpm run build:api
-pnpm run lint:api
-pnpm run check-types:api
-pnpm run test:api
-pnpm run test:api:ci
-pnpm run test:api:e2e
-```
-
-### Docker
-
-```bash
-pnpm run docker:up
-pnpm run docker:up:detached
-pnpm run docker:logs
-pnpm run docker:down
-```
-
-## Backend API
-
-El backend NestJS:
-
-- expone base path `api`
-- usa versionado por URI con version por defecto `v1`
-- valida DTOs con `ValidationPipe`
-- configura CORS desde `CORS_ORIGINS`
-
-Base URL local esperada:
+Conexión local esperada:
 
 ```text
-http://localhost:3000/api/v1
+Host: localhost
+Port: 5433
+Database: emprendex
+User: postgres
+Password: password
 ```
 
-### Modulos principales
-
-- `auth`
-- `users`
-- `catalog`
-- `customers`
-- `sales`
-- `finance`
-- `plans`
-- `reports`
-- `calendar`
-- `onboarding`
-- `health`
-
-### Endpoint de health
-
-```text
-GET /api/v1/health
-```
-
-## Base de datos
-
-- Motor: PostgreSQL 16
-- Contenedor: `db`
-- Puerto host por defecto: `5433`
-- Puerto interno del contenedor: `5432`
-
-Cuando usas Docker Compose, el backend se conecta a Postgres dentro de la red interna usando `db:5432`.
-
-### Conexion desde TablePlus
-
-Si estas levantando la base local con `pnpm run docker:up`, puedes conectarte desde TablePlus usando:
+URL equivalente:
 
 ```text
 postgresql://postgres:password@localhost:5433/emprendex
 ```
 
-Campos equivalentes:
+### Carga inicial de estructura y datos
 
-- Host: `localhost`
-- Port: `5433`
-- Database: `emprendex`
-- User: `postgres`
-- Password: `password`
+Una vez levantado PostgreSQL local, debes entrar al drive compartido del grupo de desarrollo y ejecutar:
 
-Esto es una buena practica solo para desarrollo local. En otros entornos, usa credenciales distintas por ambiente y no compartas ni subas secretos reales al repositorio.
+1. `TABLAS EMPRENDEX`
+2. `DATOS EMPRENDEX`
 
-## Calidad y validacion
+Ese orden es obligatorio.
 
-Validaciones principales del backend:
+Si eliminas el volumen de PostgreSQL o recreas la base desde cero, debes volver a correr esos scripts.
 
-```bash
-pnpm run build:api
-pnpm run check-types:api
-pnpm run lint:api
-pnpm run test:api:e2e
+## Solución rápida de problemas
+
+### `pnpm dev` no levanta mobile
+
+Revisa que exista:
+
+```text
+C:\Proyectos\emprendeX-mobile\package.json
 ```
 
-Validaciones globales del monorepo:
+Si el repo mobile no existe o no está junto a `emprendeX-web`, el backend y la web pueden arrancar, pero mobile se omitirá.
 
-```bash
-pnpm build
-pnpm lint
-pnpm check-types
+### Mobile no conecta con la API
+
+Revisa:
+
+1. que la API responda en `http://localhost:3000/api/v1/health`
+2. que `EXPO_PUBLIC_API_TARGET` sea el esperado
+3. que `EXPO_PUBLIC_API_HOST` apunte a una IP accesible desde el dispositivo
+4. que hayas reiniciado Expo después de cambiar el `.env.local`
+
+> Si usas `pnpm dev:local`, el script restaura automáticamente la IP desde `.env.example`. Si tu IP cambió, edita `mobile/.env.example` con la nueva IP.
+
+### Web no conecta con la API
+
+Revisa que `apps/web/.env.local` tenga:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
 ```
 
-## Flujo recomendado
+### Backend no arranca por configuración
 
-### Backend con Docker
+Revisa que `apps/api/.env.local` tenga:
 
-1. Crear o revisar `apps/api/.env`
-2. Ejecutar `pnpm run docker:up`
-3. Probar `http://localhost:3000/api/v1/health`
+- `JWT_SECRET` válido (mínimo 16 caracteres)
+- `DATABASE_PUBLIC_URL` apuntando a `localhost:5433`
+- Base de datos Docker corriendo (`docker compose ps`)
 
-### Backend sin Docker
+### Puerto ocupado
 
-1. Levantar una instancia de PostgreSQL accesible por `DATABASE_PUBLIC_URL`
-2. Crear o revisar `apps/api/.env`
-3. Ejecutar `pnpm run dev:api`
+```bash
+# Ver qué ocupa un puerto (Windows)
+netstat -ano | findstr :5433
 
-### Trabajo general en el monorepo
+# Detener y limpiar contenedores
+pnpm docker:db:down
+```
 
-1. Ejecutar `pnpm install`
-2. Ejecutar `pnpm dev` si quieres levantar los apps con script `dev`
-3. Ejecutar comandos especificos desde raiz segun el paquete que estes tocando
+## Resumen corto
 
-## Notas
-
-- `apps/web` ya no contiene la pantalla por defecto de Next, pero sigue siendo una base inicial y puede requerir desarrollo adicional para integrarse al backend.
-- El backend es hoy la parte mas madura del repositorio.
-- Si cambias dependencias del workspace, hazlo desde la raiz para mantener consistente el lockfile de `pnpm`.
+- Pon `emprendeX-web` y `emprendeX-mobile` en `C:\Proyectos\`.
+- Abre `C:\Proyectos\emprendeX-web\project.code-workspace`.
+- Ejecuta `pnpm i` en `C:\Proyectos\emprendeX-web`.
+- Copia los `.env.example` a `.env.local` (api, web, mobile).
+- Ejecuta `pnpm dev` en `C:\Proyectos\emprendeX-web`.
+- Carga la base desde el drive compartido: `TABLAS EMPRENDEX`, luego `DATOS EMPRENDEX`.
+- Para probar contra Railway: edita `mobile/.env.railway.example` y ejecuta `pnpm dev:railway`.

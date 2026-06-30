@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { ExpenseDetailEntity } from '../expenses/entities/expense-detail.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { FinancialCategoryEntity } from '../financial-categories/entities/financial-category.entity';
@@ -22,6 +23,7 @@ import { FinanceService } from './finance.service';
       ExpenseDetailEntity,
       OrderEntity,
     ]),
+    AuditLogsModule,
     UsersModule,
   ],
   controllers: [FinanceController],
