@@ -3,7 +3,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ItemClass } from '../../database/database.enums';
 
 export class CreateCategoryDto {
-  @ApiProperty({ description: 'Clase de ítem al que pertenece la categoría', enum: ItemClass, enumName: 'ItemClass', example: ItemClass.Product })
+  @ApiProperty({
+    description: 'Clase de ítem al que pertenece la categoría',
+    enum: ItemClass,
+    enumName: 'ItemClass',
+    example: ItemClass.Product,
+  })
   @IsEnum(ItemClass)
   itemClass!: ItemClass;
 

@@ -20,7 +20,11 @@ import { ItemEntity } from './item.entity';
   'itemClass',
   'categoryName',
 ])
-@Unique('uq_categories_id_business_class', ['categoryId', 'businessId', 'itemClass'])
+@Unique('uq_categories_id_business_class', [
+  'categoryId',
+  'businessId',
+  'itemClass',
+])
 export class CategoryEntity {
   @ApiProperty({
     description: 'Identificador único de la categoría',

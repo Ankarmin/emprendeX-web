@@ -14,7 +14,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
@@ -36,7 +41,10 @@ import { UpdateUnitDto } from './dto/update-unit.dto';
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
-  @ApiOperation({ summary: 'Listar unidades', description: 'Lista unidades de medida filtradas por clase de ítem.' })
+  @ApiOperation({
+    summary: 'Listar unidades',
+    description: 'Lista unidades de medida filtradas por clase de ítem.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de unidades.' })
   @Get('units')
   getUnits(
@@ -65,7 +73,11 @@ export class CatalogController {
     @Param('unitId', new ParseUUIDPipe()) unitId: string,
     @Body() updateUnitDto: UpdateUnitDto,
   ) {
-    return this.catalogService.updateUnit(currentUser.id, unitId, updateUnitDto);
+    return this.catalogService.updateUnit(
+      currentUser.id,
+      unitId,
+      updateUnitDto,
+    );
   }
 
   @ApiOperation({ summary: 'Eliminar unidad' })
@@ -79,7 +91,10 @@ export class CatalogController {
     await this.catalogService.deleteUnit(currentUser.id, unitId);
   }
 
-  @ApiOperation({ summary: 'Listar categorías', description: 'Lista categorías filtradas por clase de ítem.' })
+  @ApiOperation({
+    summary: 'Listar categorías',
+    description: 'Lista categorías filtradas por clase de ítem.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de categorías.' })
   @Get('categories')
   getCategories(
@@ -97,7 +112,10 @@ export class CatalogController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createCategoryDto: CreateCategoryDto,
   ) {
-    return this.catalogService.createCategory(currentUser.id, createCategoryDto);
+    return this.catalogService.createCategory(
+      currentUser.id,
+      createCategoryDto,
+    );
   }
 
   @ApiOperation({ summary: 'Actualizar categoría' })
@@ -126,14 +144,20 @@ export class CatalogController {
     await this.catalogService.deleteCategory(currentUser.id, categoryId);
   }
 
-  @ApiOperation({ summary: 'Listar ítems', description: 'Lista todos los productos y servicios del negocio.' })
+  @ApiOperation({
+    summary: 'Listar ítems',
+    description: 'Lista todos los productos y servicios del negocio.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de ítems.' })
   @Get('items')
   getItems(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.catalogService.getItems(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'Obtener ítem', description: 'Obtiene un producto o servicio por ID.' })
+  @ApiOperation({
+    summary: 'Obtener ítem',
+    description: 'Obtiene un producto o servicio por ID.',
+  })
   @ApiResponse({ status: 200, description: 'Ítem encontrado.' })
   @Get('items/:itemId')
   getItemById(
@@ -162,7 +186,11 @@ export class CatalogController {
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
     @Body() updateItemDto: UpdateItemDto,
   ) {
-    return this.catalogService.updateItem(currentUser.id, itemId, updateItemDto);
+    return this.catalogService.updateItem(
+      currentUser.id,
+      itemId,
+      updateItemDto,
+    );
   }
 
   @ApiOperation({ summary: 'Eliminar ítem' })

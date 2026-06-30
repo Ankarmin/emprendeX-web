@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Script from 'next/script';
-import { useEffect, useId, useRef, useState } from 'react';
+import Script from "next/script";
+import { useEffect, useId, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -11,9 +11,9 @@ declare global {
         options: {
           sitekey: string;
           callback: (token: string) => void;
-          'expired-callback': () => void;
-          'error-callback': () => void;
-          theme?: 'light' | 'dark' | 'auto';
+          "expired-callback": () => void;
+          "error-callback": () => void;
+          theme?: "light" | "dark" | "auto";
         },
       ) => string;
       reset: (widgetId?: string) => void;
@@ -33,7 +33,7 @@ export function TurnstileField({
   resetKey,
   onTokenChange,
 }: TurnstileFieldProps) {
-  const containerId = useId().replace(/:/g, '_');
+  const containerId = useId().replace(/:/g, "_");
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const widgetIdRef = useRef<string | null>(null);
   const tokenChangeRef = useRef(onTokenChange);
@@ -43,16 +43,21 @@ export function TurnstileField({
   }, [onTokenChange]);
 
   useEffect(() => {
-    if (!siteKey || !isScriptLoaded || !window.turnstile || widgetIdRef.current) {
+    if (
+      !siteKey ||
+      !isScriptLoaded ||
+      !window.turnstile ||
+      widgetIdRef.current
+    ) {
       return;
     }
 
     widgetIdRef.current = window.turnstile.render(`#${containerId}`, {
       sitekey: siteKey,
-      theme: 'light',
+      theme: "light",
       callback: (token) => tokenChangeRef.current(token),
-      'expired-callback': () => tokenChangeRef.current(null),
-      'error-callback': () => tokenChangeRef.current(null),
+      "expired-callback": () => tokenChangeRef.current(null),
+      "error-callback": () => tokenChangeRef.current(null),
     });
 
     return () => {

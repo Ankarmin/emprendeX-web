@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
+import Image from "next/image";
 import {
   ArrowLeft,
   Minus,
@@ -10,53 +10,56 @@ import {
   ShoppingCart,
   Trash2,
   Wrench,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useDeferredValue, useMemo, useState } from 'react';
-import { submitPublicQuotation } from '@/lib/public-catalog-api';
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { submitPublicQuotation } from "@/lib/public-catalog-api";
 import type {
   PublicCatalogItem,
   PublicCatalogState,
-} from '@/lib/public-catalog-types';
-import { TurnstileField } from './turnstile-field';
+} from "@/lib/public-catalog-types";
+import { TurnstileField } from "./turnstile-field";
 
 type PublicCatalogExperienceProps = {
   slug: string;
   catalog: PublicCatalogState;
 };
 
-type FilterMode = 'Todos' | 'Producto' | 'Servicio';
-type DeliveryMethod = 'Entrega a domicilio' | 'Recojo en tienda';
-type Step = 'cart' | 'client-type' | 'form' | 'confirm';
+type FilterMode = "Todos" | "Producto" | "Servicio";
+type DeliveryMethod = "Entrega a domicilio" | "Recojo en tienda";
+type Step = "cart" | "client-type" | "form" | "confirm";
 
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
-const currencySymbol = process.env.NEXT_PUBLIC_DEFAULT_CURRENCY_SYMBOL?.trim() || 'S/';
+const currencySymbol =
+  process.env.NEXT_PUBLIC_DEFAULT_CURRENCY_SYMBOL?.trim() || "S/";
 const documentNumberLength = 8;
 
 export function PublicCatalogExperience({
   slug,
   catalog,
 }: PublicCatalogExperienceProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [filterMode, setFilterMode] = useState<FilterMode>('Todos');
-  const [category, setCategory] = useState('Todas');
+  const [filterMode, setFilterMode] = useState<FilterMode>("Todos");
+  const [category, setCategory] = useState("Todas");
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [stockByItemId, setStockByItemId] = useState<Record<string, number>>({});
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [step, setStep] = useState<Step>('cart');
-  const [customerMode, setCustomerMode] = useState<'new' | 'existing'>('new');
-  const [customerDni, setCustomerDni] = useState('');
-  const [customerFirstNames, setCustomerFirstNames] = useState('');
-  const [customerLastNames, setCustomerLastNames] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [deliveryDate, setDeliveryDate] = useState('');
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
-    'Entrega a domicilio',
+  const [stockByItemId, setStockByItemId] = useState<Record<string, number>>(
+    {},
   );
-  const [description, setDescription] = useState('');
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [step, setStep] = useState<Step>("cart");
+  const [customerMode, setCustomerMode] = useState<"new" | "existing">("new");
+  const [customerDni, setCustomerDni] = useState("");
+  const [customerFirstNames, setCustomerFirstNames] = useState("");
+  const [customerLastNames, setCustomerLastNames] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
+    "Entrega a domicilio",
+  );
+  const [description, setDescription] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -81,21 +84,27 @@ export function PublicCatalogExperience({
   const normalizedQuery = deferredQuery.trim().toLowerCase();
   const categories = useMemo(() => {
     const pool = items.filter(
-      (item) => filterMode === 'Todos' || item.itemClass === filterMode,
+      (item) => filterMode === "Todos" || item.itemClass === filterMode,
     );
 
-    return ['Todas', ...Array.from(new Set(pool.map((item) => item.category.name)))];
+    return [
+      "Todas",
+      ...Array.from(new Set(pool.map((item) => item.category.name))),
+    ];
   }, [items, filterMode]);
 
   const filteredItems = items
-    .filter((item) => filterMode === 'Todos' || item.itemClass === filterMode)
-    .filter((item) => category === 'Todas' || item.category.name === category)
+    .filter((item) => filterMode === "Todos" || item.itemClass === filterMode)
+    .filter((item) => category === "Todas" || item.category.name === category)
     .filter((item) => {
-      const searchableText = `${item.name} ${item.referenceCode} ${item.sku ?? ''} ${item.category.name}`
-        .trim()
-        .toLowerCase();
+      const searchableText =
+        `${item.name} ${item.referenceCode} ${item.sku ?? ""} ${item.category.name}`
+          .trim()
+          .toLowerCase();
 
-      return normalizedQuery.length === 0 || searchableText.includes(normalizedQuery);
+      return (
+        normalizedQuery.length === 0 || searchableText.includes(normalizedQuery)
+      );
     });
 
   const cartItems = items
@@ -109,11 +118,11 @@ export function PublicCatalogExperience({
   const itemCount = cartItems.reduce((sum, entry) => sum + entry.quantity, 0);
 
   function getMaxQuantity(item: PublicCatalogItem) {
-    if (item.itemClass !== 'Producto') {
+    if (item.itemClass !== "Producto") {
       return null;
     }
 
-    return typeof item.stock === 'number' ? item.stock : null;
+    return typeof item.stock === "number" ? item.stock : null;
   }
 
   function addItem(item: PublicCatalogItem) {
@@ -157,7 +166,7 @@ export function PublicCatalogExperience({
     });
   }
 
-  function openCart(nextStep: Step = 'cart') {
+  function openCart(nextStep: Step = "cart") {
     setError(null);
     setSuccess(null);
     setStep(nextStep);
@@ -167,47 +176,50 @@ export function PublicCatalogExperience({
   function goBack() {
     setError(null);
     setStep((current) => {
-      if (current === 'confirm') {
-        return 'form';
+      if (current === "confirm") {
+        return "form";
       }
 
-      if (current === 'form') {
-        return 'client-type';
+      if (current === "form") {
+        return "client-type";
       }
 
-      return 'cart';
+      return "cart";
     });
   }
 
   function continueFromForm() {
     setError(null);
 
-    if (!customerDni.trim() || customerDni.trim().length < documentNumberLength) {
-      setError('Ingresa un DNI válido para continuar.');
+    if (
+      !customerDni.trim() ||
+      customerDni.trim().length < documentNumberLength
+    ) {
+      setError("Ingresa un DNI válido para continuar.");
       return;
     }
 
-    if (customerMode === 'new' && !customerFirstNames.trim()) {
-      setError('Ingresa los nombres del cliente nuevo para continuar.');
+    if (customerMode === "new" && !customerFirstNames.trim()) {
+      setError("Ingresa los nombres del cliente nuevo para continuar.");
       return;
     }
 
     if (!deliveryDate) {
-      setError('Selecciona una fecha estimada de entrega.');
+      setError("Selecciona una fecha estimada de entrega.");
       return;
     }
 
-    setStep('confirm');
+    setStep("confirm");
   }
 
   async function handleSubmit() {
     if (cartItems.length === 0) {
-      setError('Selecciona al menos un item para continuar.');
+      setError("Selecciona al menos un item para continuar.");
       return;
     }
 
     if (turnstileSiteKey && !turnstileToken) {
-      setError('Completa la verificación de seguridad antes de continuar.');
+      setError("Completa la verificación de seguridad antes de continuar.");
       return;
     }
 
@@ -220,19 +232,25 @@ export function PublicCatalogExperience({
           mode: customerMode,
           dni: customerDni.trim(),
           firstNames:
-            customerMode === 'new'
+            customerMode === "new"
               ? customerFirstNames.trim() || undefined
               : undefined,
           lastNames:
-            customerMode === 'new'
+            customerMode === "new"
               ? customerLastNames.trim() || undefined
               : undefined,
           email:
-            customerMode === 'new' ? customerEmail.trim() || undefined : undefined,
+            customerMode === "new"
+              ? customerEmail.trim() || undefined
+              : undefined,
           phone:
-            customerMode === 'new' ? customerPhone.trim() || undefined : undefined,
+            customerMode === "new"
+              ? customerPhone.trim() || undefined
+              : undefined,
           address:
-            customerMode === 'new' ? customerAddress.trim() || undefined : undefined,
+            customerMode === "new"
+              ? customerAddress.trim() || undefined
+              : undefined,
         },
         items: cartItems.map(({ item, quantity }) => ({
           itemId: item.id,
@@ -252,7 +270,7 @@ export function PublicCatalogExperience({
         const next = { ...current };
 
         for (const { item, quantity } of cartItems) {
-          if (item.itemClass !== 'Producto' || typeof item.stock !== 'number') {
+          if (item.itemClass !== "Producto" || typeof item.stock !== "number") {
             continue;
           }
 
@@ -262,14 +280,14 @@ export function PublicCatalogExperience({
         return next;
       });
       setCart({});
-      setDescription('');
+      setDescription("");
       setTurnstileToken(null);
       setTurnstileResetKey((current) => current + 1);
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : 'No se pudo enviar la cotización.',
+          : "No se pudo enviar la cotización.",
       );
     } finally {
       setIsSubmitting(false);
@@ -305,7 +323,7 @@ export function PublicCatalogExperience({
             </div>
             <button
               type="button"
-              onClick={() => openCart('cart')}
+              onClick={() => openCart("cart")}
               className="relative rounded-full p-2 transition hover:bg-white/10"
               aria-label="Abrir carrito"
             >
@@ -333,26 +351,25 @@ export function PublicCatalogExperience({
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 pointer-events-auto">
-            {(['Todos', 'Producto', 'Servicio'] as const).map((option) => (
+            {(["Todos", "Producto", "Servicio"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => {
                   setFilterMode(option);
-                  setCategory('Todas');
+                  setCategory("Todas");
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition ${
                   filterMode === option
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'bg-white/10 text-white/85 hover:bg-white/15'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "bg-white/10 text-white/85 hover:bg-white/15"
                 }`}
                 aria-pressed={filterMode === option}
               >
-                {option === 'Todos' ? 'Todos' : `${option}s`}
+                {option === "Todos" ? "Todos" : `${option}s`}
               </button>
             ))}
           </div>
-
         </div>
       </header>
 
@@ -366,8 +383,8 @@ export function PublicCatalogExperience({
                 onClick={() => setCategory(option)}
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
                   category === option
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground"
                 }`}
                 aria-pressed={category === option}
               >
@@ -379,8 +396,10 @@ export function PublicCatalogExperience({
       ) : null}
 
       <main className="px-3 pt-3">
-
-        <div className="grid grid-cols-3 items-stretch gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6" suppressHydrationWarning>
+        <div
+          className="grid grid-cols-3 items-stretch gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
+          suppressHydrationWarning
+        >
           {filteredItems.map((item, index) => (
             <CatalogTile
               key={item.id}
@@ -446,7 +465,10 @@ export function PublicCatalogExperience({
   );
 }
 
-function normalizeCatalogItem(value: unknown, index: number): PublicCatalogItem {
+function normalizeCatalogItem(
+  value: unknown,
+  index: number,
+): PublicCatalogItem {
   const item = asRecord(value);
   const category = asRecord(item.category);
   const unit = asRecord(item.unit);
@@ -461,11 +483,15 @@ function normalizeCatalogItem(value: unknown, index: number): PublicCatalogItem 
       category.category_name ??
       item.categoryName ??
       item.category_name,
-    'General',
+    "General",
   );
   const unitName = getString(
-    unit.name ?? unit.unitName ?? unit.unit_name ?? item.unitName ?? item.unit_name,
-    itemClass === 'Producto' ? 'Unidad' : 'Servicio',
+    unit.name ??
+      unit.unitName ??
+      unit.unit_name ??
+      item.unitName ??
+      item.unit_name,
+    itemClass === "Producto" ? "Unidad" : "Servicio",
   );
 
   return {
@@ -477,44 +503,51 @@ function normalizeCatalogItem(value: unknown, index: number): PublicCatalogItem 
     description: getNullableString(item.description),
     imageUrl: getNullableString(item.imageUrl ?? item.image_url),
     price: getPrice(item.price),
-    stock: getNullableNumber(item.stock ?? item.stockQuantity ?? item.stock_quantity),
+    stock: getNullableNumber(
+      item.stock ?? item.stockQuantity ?? item.stock_quantity,
+    ),
     unit: {
       id: getString(unit.id ?? unit.unitId ?? unit.unit_id, unitName),
       name: unitName,
     },
     category: {
-      id: getString(category.id ?? category.categoryId ?? category.category_id, categoryName),
+      id: getString(
+        category.id ?? category.categoryId ?? category.category_id,
+        categoryName,
+      ),
       name: categoryName,
     },
   };
 }
 
-function normalizeItemClass(value: unknown): PublicCatalogItem['itemClass'] {
-  return value === 'Servicio' ? 'Servicio' : 'Producto';
+function normalizeItemClass(value: unknown): PublicCatalogItem["itemClass"] {
+  return value === "Servicio" ? "Servicio" : "Producto";
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function getString(value: unknown, fallback: string) {
-  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function getNullableString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function getNullableNumber(value: unknown) {
-  const number = typeof value === 'number' ? value : Number(value);
+  const number = typeof value === "number" ? value : Number(value);
 
   return Number.isFinite(number) ? number : null;
 }
 
 function getPrice(value: unknown) {
-  const number = typeof value === 'number' ? value : Number(value);
+  const number = typeof value === "number" ? value : Number(value);
 
-  return Number.isFinite(number) ? number.toFixed(2) : '0.00';
+  return Number.isFinite(number) ? number.toFixed(2) : "0.00";
 }
 
 function CatalogTile({
@@ -530,56 +563,55 @@ function CatalogTile({
   onAdd: () => void;
   onDecrease: () => void;
 }) {
-  const maxQuantity = item.itemClass === 'Producto' ? item.stock : null;
+  const maxQuantity = item.itemClass === "Producto" ? item.stock : null;
   const isUnavailable = maxQuantity === 0;
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-lg border bg-card">
       <div className="relative aspect-square bg-muted">
-          {item.imageUrl ? (
-            <Image
-              src={item.imageUrl}
-              alt={item.name}
-              fill
-              unoptimized
-              priority={isPriority}
-              className="object-cover"
-              sizes="(min-width: 1280px) 14vw, (min-width: 1024px) 18vw, (min-width: 768px) 25vw, 50vw"
-            />
+        {item.imageUrl ? (
+          <Image
+            src={item.imageUrl}
+            alt={item.name}
+            fill
+            unoptimized
+            priority={isPriority}
+            className="object-cover"
+            sizes="(min-width: 1280px) 14vw, (min-width: 1024px) 18vw, (min-width: 768px) 25vw, 50vw"
+          />
+        ) : (
+          <div className="grid h-full place-items-center bg-muted text-2xl">
+            {item.itemClass === "Producto" ? "📦" : "🛠"}
+          </div>
+        )}
+
+        <span className="absolute left-1 top-1 inline-flex h-4 items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0 text-[9px] font-medium text-secondary-foreground">
+          {item.itemClass === "Producto" ? (
+            <Package className="h-2.5 w-2.5" />
           ) : (
-            <div className="grid h-full place-items-center bg-muted text-2xl">
-              {item.itemClass === 'Producto' ? '📦' : '🛠'}
-            </div>
+            <Wrench className="h-2.5 w-2.5" />
           )}
-
-          <span className="absolute left-1 top-1 inline-flex h-4 items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0 text-[9px] font-medium text-secondary-foreground">
-            {item.itemClass === 'Producto' ? (
-              <Package className="h-2.5 w-2.5" />
-            ) : (
-              <Wrench className="h-2.5 w-2.5" />
-            )}
-            <span className="capitalize">
-              {item.itemClass === 'Producto' ? 'producto' : 'servicio'}
-            </span>
+          <span className="capitalize">
+            {item.itemClass === "Producto" ? "producto" : "servicio"}
           </span>
+        </span>
 
-          {isUnavailable ? (
-            <div className="absolute inset-0 grid place-items-center bg-background/70">
-              <span className="text-[10px] font-semibold text-destructive">
-                Agotado
-              </span>
-            </div>
-          ) : null}
-
+        {isUnavailable ? (
+          <div className="absolute inset-0 grid place-items-center bg-background/70">
+            <span className="text-[10px] font-semibold text-destructive">
+              Agotado
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className="flex h-24 flex-col gap-0.5 p-1.5">
         <p className="line-clamp-2 min-h-[2.2em] text-xs font-medium leading-tight">
           {item.name}
         </p>
         <p className="h-4 truncate text-[10px] text-muted-foreground">
-          {item.itemClass === 'Producto'
+          {item.itemClass === "Producto"
             ? item.stock == null
-              ? 'Stock disponible'
+              ? "Stock disponible"
               : `Stock: ${item.stock}`
             : item.category.name}
         </p>
@@ -607,7 +639,9 @@ function CatalogTile({
               >
                 <Minus className="h-2.5 w-2.5" />
               </button>
-              <span className="w-3 text-center text-xs font-semibold">{quantity}</span>
+              <span className="w-3 text-center text-xs font-semibold">
+                {quantity}
+              </span>
               <button
                 type="button"
                 onClick={onAdd}
@@ -669,7 +703,7 @@ function CartDrawer({
   customerEmail: string;
   customerFirstNames: string;
   customerLastNames: string;
-  customerMode: 'new' | 'existing';
+  customerMode: "new" | "existing";
   customerPhone: string;
   deliveryDate: string;
   deliveryMethod: DeliveryMethod;
@@ -689,7 +723,7 @@ function CartDrawer({
   onCustomerEmailChange: (value: string) => void;
   onCustomerFirstNamesChange: (value: string) => void;
   onCustomerLastNamesChange: (value: string) => void;
-  onCustomerModeChange: (value: 'new' | 'existing') => void;
+  onCustomerModeChange: (value: "new" | "existing") => void;
   onCustomerPhoneChange: (value: string) => void;
   onDecrease: (itemId: string) => void;
   onDeliveryDateChange: (value: string) => void;
@@ -713,7 +747,7 @@ function CartDrawer({
 
       <aside className="absolute right-0 top-0 flex h-full w-full flex-col bg-background shadow-2xl sm:max-w-md">
         <div className="flex flex-row items-center gap-2 border-b px-4 py-3">
-          {step !== 'cart' && !success ? (
+          {step !== "cart" && !success ? (
             <button
               type="button"
               onClick={onBack}
@@ -724,7 +758,7 @@ function CartDrawer({
             </button>
           ) : null}
           <h2 className="flex-1 text-left text-lg font-semibold">
-            {success ? 'Cotización enviada' : getStepTitle(step, customerMode)}
+            {success ? "Cotización enviada" : getStepTitle(step, customerMode)}
           </h2>
           <button
             type="button"
@@ -756,7 +790,7 @@ function CartDrawer({
             </div>
           ) : null}
 
-          {!success && step === 'cart' ? (
+          {!success && step === "cart" ? (
             <CartList
               cartItems={cartItems}
               onAdd={onAdd}
@@ -765,24 +799,24 @@ function CartDrawer({
             />
           ) : null}
 
-          {!success && step === 'client-type' ? (
+          {!success && step === "client-type" ? (
             <div className="space-y-3">
               <CustomerModeOption
-                checked={customerMode === 'existing'}
+                checked={customerMode === "existing"}
                 description="Solo necesitamos tu DNI."
                 title="Cliente registrado"
-                onClick={() => onCustomerModeChange('existing')}
+                onClick={() => onCustomerModeChange("existing")}
               />
               <CustomerModeOption
-                checked={customerMode === 'new'}
+                checked={customerMode === "new"}
                 description="Cuéntanos tus datos para crear la solicitud."
                 title="Cliente nuevo"
-                onClick={() => onCustomerModeChange('new')}
+                onClick={() => onCustomerModeChange("new")}
               />
             </div>
           ) : null}
 
-          {!success && step === 'form' ? (
+          {!success && step === "form" ? (
             <QuotationForm
               customerAddress={customerAddress}
               customerDni={customerDni}
@@ -808,7 +842,7 @@ function CartDrawer({
             />
           ) : null}
 
-          {!success && step === 'confirm' ? (
+          {!success && step === "confirm" ? (
             <ConfirmSummary
               cartItems={cartItems}
               customerDni={customerDni}
@@ -832,28 +866,30 @@ function CartDrawer({
           <div className="space-y-2 border-t p-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total</span>
-              <span className="font-semibold">{currencySymbol} {total.toFixed(2)}</span>
+              <span className="font-semibold">
+                {currencySymbol} {total.toFixed(2)}
+              </span>
             </div>
-            {step === 'cart' ? (
+            {step === "cart" ? (
               <button
                 type="button"
                 className="w-full rounded-md bg-primary py-3 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={!canContinue}
-                onClick={() => onStepChange('client-type')}
+                onClick={() => onStepChange("client-type")}
               >
                 Confirmar cotización
               </button>
             ) : null}
-            {step === 'client-type' ? (
+            {step === "client-type" ? (
               <button
                 type="button"
                 className="w-full rounded-md bg-primary py-3 text-sm font-medium text-primary-foreground"
-                onClick={() => onStepChange('form')}
+                onClick={() => onStepChange("form")}
               >
                 Continuar
               </button>
             ) : null}
-            {step === 'form' ? (
+            {step === "form" ? (
               <button
                 type="button"
                 className="w-full rounded-md bg-primary py-3 text-sm font-medium text-primary-foreground"
@@ -862,14 +898,14 @@ function CartDrawer({
                 Continuar
               </button>
             ) : null}
-            {step === 'confirm' ? (
+            {step === "confirm" ? (
               <button
                 type="button"
                 className="w-full rounded-md bg-primary py-3 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={isSubmitting}
                 onClick={onSubmit}
               >
-                {isSubmitting ? 'Enviando...' : 'Generar cotización'}
+                {isSubmitting ? "Enviando..." : "Generar cotización"}
               </button>
             ) : null}
           </div>
@@ -879,20 +915,20 @@ function CartDrawer({
   );
 }
 
-function getStepTitle(step: Step, customerMode: 'new' | 'existing') {
-  if (step === 'cart') {
-    return 'Tu cotización';
+function getStepTitle(step: Step, customerMode: "new" | "existing") {
+  if (step === "cart") {
+    return "Tu cotización";
   }
 
-  if (step === 'client-type') {
-    return 'Tipo de cliente';
+  if (step === "client-type") {
+    return "Tipo de cliente";
   }
 
-  if (step === 'form') {
-    return customerMode === 'new' ? 'Datos del cliente' : 'Identifícate';
+  if (step === "form") {
+    return customerMode === "new" ? "Datos del cliente" : "Identifícate";
   }
 
-  return 'Confirmar cotización';
+  return "Confirmar cotización";
 }
 
 function CartList({
@@ -930,7 +966,7 @@ function CartList({
               />
             ) : (
               <div className="grid h-full place-items-center bg-muted text-xl">
-                {item.itemClass === 'Producto' ? '📦' : '🛠'}
+                {item.itemClass === "Producto" ? "📦" : "🛠"}
               </div>
             )}
           </div>
@@ -989,12 +1025,12 @@ function CustomerModeOption({
       type="button"
       onClick={onClick}
       className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border p-4 text-left transition ${
-        checked ? 'border-primary bg-accent' : 'border-border bg-background'
+        checked ? "border-primary bg-accent" : "border-border bg-background"
       }`}
     >
       <span
         className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-          checked ? 'border-primary bg-primary' : 'border-border'
+          checked ? "border-primary bg-primary" : "border-border"
         }`}
       >
         {checked ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
@@ -1037,7 +1073,7 @@ function QuotationForm({
   customerEmail: string;
   customerFirstNames: string;
   customerLastNames: string;
-  customerMode: 'new' | 'existing';
+  customerMode: "new" | "existing";
   customerPhone: string;
   deliveryDate: string;
   deliveryMethod: DeliveryMethod;
@@ -1059,23 +1095,27 @@ function QuotationForm({
       <FieldLabel label="DNI">
         <input
           value={customerDni}
-            onChange={(event) =>
-              onCustomerDniChange(
-                event.target.value.replace(/\D/g, '').slice(0, documentNumberLength),
-              )
-            }
-            className={fieldClassName}
-            placeholder="Solo numeros"
-            inputMode="numeric"
+          onChange={(event) =>
+            onCustomerDniChange(
+              event.target.value
+                .replace(/\D/g, "")
+                .slice(0, documentNumberLength),
+            )
+          }
+          className={fieldClassName}
+          placeholder="Solo numeros"
+          inputMode="numeric"
         />
       </FieldLabel>
 
-      {customerMode === 'new' ? (
+      {customerMode === "new" ? (
         <>
           <FieldLabel label="Nombres">
             <input
               value={customerFirstNames}
-              onChange={(event) => onCustomerFirstNamesChange(event.target.value)}
+              onChange={(event) =>
+                onCustomerFirstNamesChange(event.target.value)
+              }
               className={fieldClassName}
               maxLength={80}
             />
@@ -1083,7 +1123,9 @@ function QuotationForm({
           <FieldLabel label="Apellidos">
             <input
               value={customerLastNames}
-              onChange={(event) => onCustomerLastNamesChange(event.target.value)}
+              onChange={(event) =>
+                onCustomerLastNamesChange(event.target.value)
+              }
               className={fieldClassName}
               maxLength={80}
             />
@@ -1162,7 +1204,7 @@ function QuotationForm({
 }
 
 const fieldClassName =
-  'mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:ring-2 focus:ring-ring';
+  "mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:ring-2 focus:ring-ring";
 
 function FieldLabel({
   children,
@@ -1193,7 +1235,7 @@ function ConfirmSummary({
   customerDni: string;
   customerFirstNames: string;
   customerLastNames: string;
-  customerMode: 'new' | 'existing';
+  customerMode: "new" | "existing";
   deliveryDate: string;
   deliveryMethod: DeliveryMethod;
   total: number;
@@ -1204,7 +1246,10 @@ function ConfirmSummary({
         <p className="font-medium">Resumen</p>
         <div className="space-y-2">
           {cartItems.map(({ item, quantity }) => (
-            <div key={item.id} className="flex justify-between gap-4 text-xs text-muted-foreground">
+            <div
+              key={item.id}
+              className="flex justify-between gap-4 text-xs text-muted-foreground"
+            >
               <span>
                 {item.name} x{quantity}
               </span>
@@ -1216,16 +1261,18 @@ function ConfirmSummary({
         </div>
         <div className="mt-2 flex justify-between border-t pt-2 font-semibold">
           <span>Total</span>
-          <span>{currencySymbol} {total.toFixed(2)}</span>
+          <span>
+            {currencySymbol} {total.toFixed(2)}
+          </span>
         </div>
       </div>
 
       <div className="rounded-lg border p-3 text-sm">
         <p className="font-medium">Cliente</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {customerMode === 'new'
+          {customerMode === "new"
             ? `${customerFirstNames} ${customerLastNames}`.trim()
-            : 'Cliente registrado'}{' '}
+            : "Cliente registrado"}{" "}
           · DNI {customerDni}
         </p>
       </div>

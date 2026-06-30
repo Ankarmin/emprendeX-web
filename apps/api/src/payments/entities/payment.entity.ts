@@ -64,7 +64,7 @@ export class PaymentEntity {
 
   @ApiProperty({
     description: 'Total pendiente por pagar',
-    example: 150.00,
+    example: 150.0,
   })
   @Column({
     type: 'numeric',

@@ -6,12 +6,20 @@ import { ColorPaletteId } from '../../database/database.enums';
 import { HTTPS_URL_REGEX } from '../../common/utils/url.util';
 
 export class UpdateBusinessPreferencesDto {
-  @ApiPropertyOptional({ description: 'ID de la paleta de colores del negocio', enum: ColorPaletteId, enumName: 'ColorPaletteId', example: 'PALETTE_1' })
+  @ApiPropertyOptional({
+    description: 'ID de la paleta de colores del negocio',
+    enum: ColorPaletteId,
+    enumName: 'ColorPaletteId',
+    example: 'PALETTE_1',
+  })
   @IsOptional()
   @IsEnum(ColorPaletteId)
   colorPaletteId?: ColorPaletteId;
 
-  @ApiPropertyOptional({ description: 'URL del logo del negocio', example: 'https://ejemplo.com/logo.png' })
+  @ApiPropertyOptional({
+    description: 'URL del logo del negocio',
+    example: 'https://ejemplo.com/logo.png',
+  })
   @IsOptional()
   @Transform(transformTrimmedNullableString)
   @Matches(HTTPS_URL_REGEX)

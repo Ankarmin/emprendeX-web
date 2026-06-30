@@ -238,7 +238,9 @@ export class PublicCatalogService {
               businessId: business.businessId,
             })
             .andWhere('item_id = :itemId', { itemId: item.itemId })
-            .andWhere('stock >= :quantity', { quantity: requestedItem.quantity })
+            .andWhere('stock >= :quantity', {
+              quantity: requestedItem.quantity,
+            })
             .execute();
 
           if (result.affected !== 1) {
@@ -479,7 +481,8 @@ export class PublicCatalogService {
       businessCategory: business.businessCategory,
       publicCatalogSlug: business.publicCatalogSlug,
       logoUrl: business.preferences?.logoUrl ?? null,
-      colorPaletteId: business.preferences?.colorPaletteId ?? ColorPaletteId.Violet,
+      colorPaletteId:
+        business.preferences?.colorPaletteId ?? ColorPaletteId.Violet,
     };
   }
 
@@ -495,7 +498,9 @@ export class PublicCatalogService {
       categoryName: item.category.categoryName,
       unitName: item.unit.unitName,
       stock:
-        item.itemClass === ItemClass.Product ? (item.product?.stock ?? null) : null,
+        item.itemClass === ItemClass.Product
+          ? (item.product?.stock ?? null)
+          : null,
     };
   }
 

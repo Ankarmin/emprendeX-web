@@ -89,7 +89,7 @@ export class QuotationDetailEntity {
 
   @ApiProperty({
     description: 'Descuento aplicado al ítem',
-    example: 5.00,
+    example: 5.0,
   })
   @Column({
     type: 'numeric',

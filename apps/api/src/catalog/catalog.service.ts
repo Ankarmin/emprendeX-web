@@ -78,7 +78,10 @@ export class CatalogService {
     private readonly itemsRepository: Repository<ItemEntity>,
   ) {}
 
-  async getUnits(userId: string, itemClass: ItemClass): Promise<UnitResponse[]> {
+  async getUnits(
+    userId: string,
+    itemClass: ItemClass,
+  ): Promise<UnitResponse[]> {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
       const units = await manager.getRepository(UnitEntity).find({
@@ -129,7 +132,11 @@ export class CatalogService {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
       const unitsRepository = manager.getRepository(UnitEntity);
-      const unit = await this.getUnitOrThrow(business.businessId, unitId, manager);
+      const unit = await this.getUnitOrThrow(
+        business.businessId,
+        unitId,
+        manager,
+      );
 
       if (updateUnitDto.unitName) {
         const unitName = updateUnitDto.unitName.trim();
@@ -299,7 +306,11 @@ export class CatalogService {
   async getItemById(userId: string, itemId: string): Promise<ItemResponse> {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const item = await this.getItemOrThrow(business.businessId, itemId, manager);
+      const item = await this.getItemOrThrow(
+        business.businessId,
+        itemId,
+        manager,
+      );
       return this.mapItem(item);
     });
   }
@@ -392,7 +403,11 @@ export class CatalogService {
         const business = await this.getBusinessOrThrow(userId, manager);
         const itemsRepository = manager.getRepository(ItemEntity);
         const productsRepository = manager.getRepository(ProductEntity);
-        const item = await this.getItemOrThrow(business.businessId, itemId, manager);
+        const item = await this.getItemOrThrow(
+          business.businessId,
+          itemId,
+          manager,
+        );
 
         this.ensureItemSpecializationPayload(item.itemClass, updateItemDto);
 
@@ -400,7 +415,9 @@ export class CatalogService {
           item.name = updateItemDto.name.trim();
         }
         if (updateItemDto.description !== undefined) {
-          item.description = this.normalizeOptionalText(updateItemDto.description);
+          item.description = this.normalizeOptionalText(
+            updateItemDto.description,
+          );
         }
         if (updateItemDto.sku !== undefined) {
           item.sku = this.normalizeOptionalText(updateItemDto.sku);
@@ -696,7 +713,10 @@ export class CatalogService {
         name: item.unit.unitName,
         itemClass: item.unit.itemClass,
       },
-      stock: item.itemClass === ItemClass.Product ? item.product?.stock ?? 0 : null,
+      stock:
+        item.itemClass === ItemClass.Product
+          ? (item.product?.stock ?? 0)
+          : null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };

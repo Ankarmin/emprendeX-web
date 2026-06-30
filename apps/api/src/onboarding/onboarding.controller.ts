@@ -1,5 +1,10 @@
 import { Body, Controller, Patch, Put, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,7 +21,11 @@ import { OnboardingService } from './onboarding.service';
 export class OnboardingController {
   constructor(private readonly onboardingService: OnboardingService) {}
 
-  @ApiOperation({ summary: 'Configurar negocio', description: 'Actualiza nombre y categoría del negocio durante el onboarding.' })
+  @ApiOperation({
+    summary: 'Configurar negocio',
+    description:
+      'Actualiza nombre y categoría del negocio durante el onboarding.',
+  })
   @ApiResponse({ status: 200 })
   @Patch('setup')
   updateSetup(
@@ -29,7 +38,10 @@ export class OnboardingController {
     );
   }
 
-  @ApiOperation({ summary: 'Completar módulos', description: 'Marca los módulos de onboarding como completados.' })
+  @ApiOperation({
+    summary: 'Completar módulos',
+    description: 'Marca los módulos de onboarding como completados.',
+  })
   @ApiResponse({ status: 200, description: 'Módulos actualizados.' })
   @Put('modules')
   completeModules(@CurrentUser() currentUser: AuthenticatedUser) {

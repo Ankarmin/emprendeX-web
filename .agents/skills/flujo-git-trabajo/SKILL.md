@@ -37,18 +37,18 @@ main ─────────────────────────
 
 Las ramas se nombran con el formato: `<tipo>/<descripcion-en-kebab-case>`
 
-| Prefijo | Tipo de Cambio | Ejemplo |
-|---------|---------------|---------|
-| `feat/` | Nueva funcionalidad o pantalla | `feat/pantalla-recuperar-contrasena` |
-| `fix/` | Corrección de error o bug | `fix/validacion-email-duplicado` |
-| `chore/` | Tareas de infraestructura o mantenimiento | `chore/actualizar-dependencias-pnpm` |
-| `docs/` | Documentación | `docs/guia-instalacion-entorno` |
-| `refactor/` | Refactorización de código | `refactor/extraer-logica-busqueda` |
-| `style/` | Cambios de estilo o formato | `style/tema-oscuro-dashboard` |
-| `test/` | Adición o modificación de pruebas | `test/unitarios-modulo-clientes` |
-| `perf/` | Mejoras de rendimiento | `perf/carga-perezosa-catalogo` |
-| `ci/` | Integración continua | `ci/agregar-workflow-linting` |
-| `build/` | Sistema de build | `build/configurar-cache-pnpm` |
+| Prefijo     | Tipo de Cambio                            | Ejemplo                              |
+| ----------- | ----------------------------------------- | ------------------------------------ |
+| `feat/`     | Nueva funcionalidad o pantalla            | `feat/pantalla-recuperar-contrasena` |
+| `fix/`      | Corrección de error o bug                 | `fix/validacion-email-duplicado`     |
+| `chore/`    | Tareas de infraestructura o mantenimiento | `chore/actualizar-dependencias-pnpm` |
+| `docs/`     | Documentación                             | `docs/guia-instalacion-entorno`      |
+| `refactor/` | Refactorización de código                 | `refactor/extraer-logica-busqueda`   |
+| `style/`    | Cambios de estilo o formato               | `style/tema-oscuro-dashboard`        |
+| `test/`     | Adición o modificación de pruebas         | `test/unitarios-modulo-clientes`     |
+| `perf/`     | Mejoras de rendimiento                    | `perf/carga-perezosa-catalogo`       |
+| `ci/`       | Integración continua                      | `ci/agregar-workflow-linting`        |
+| `build/`    | Sistema de build                          | `build/configurar-cache-pnpm`        |
 
 ### Reglas para `<descripcion-en-kebab-case>`
 
@@ -59,21 +59,21 @@ Las ramas se nombran con el formato: `<tipo>/<descripcion-en-kebab-case>`
 
 ### Ejemplos por módulo del proyecto
 
-| Rama | Módulo / Sección |
-|------|-----------------|
-| `feat/auth-registro-google` | Autenticación — registro con Google |
-| `feat/negocio-configuracion-inicial` | Negocio — setup onboarding |
-| `feat/dashboard-modulos-visibles` | Dashboard — módulos personalizables |
-| `feat/clientes-crud-completo` | Clientes — CRUD backend |
-| `feat/catalogo-categorias-unidades` | Catálogo — categorías y unidades |
-| `feat/cotizaciones-multi-producto` | Cotizaciones — gestión multi-producto |
-| `feat/finanzas-pagos-agenda` | Finanzas — pagos y agenda |
-| `feat/reportes-metricas-negocio` | Reportes — métricas clave |
-| `feat/planes-premium-suscripcion` | Planes — estructura premium |
-| `feat/editar-perfil-negocio` | Negocio — edición de perfil |
-| `feat/contacto-cliente-acciones` | Clientes — acciones de contacto |
-| `chore/infraestructura-monorepo` | Infraestructura base |
-| `fix/clientes-email-duplicado` | Bug — email duplicado en clientes |
+| Rama                                 | Módulo / Sección                      |
+| ------------------------------------ | ------------------------------------- |
+| `feat/auth-registro-google`          | Autenticación — registro con Google   |
+| `feat/negocio-configuracion-inicial` | Negocio — setup onboarding            |
+| `feat/dashboard-modulos-visibles`    | Dashboard — módulos personalizables   |
+| `feat/clientes-crud-completo`        | Clientes — CRUD backend               |
+| `feat/catalogo-categorias-unidades`  | Catálogo — categorías y unidades      |
+| `feat/cotizaciones-multi-producto`   | Cotizaciones — gestión multi-producto |
+| `feat/finanzas-pagos-agenda`         | Finanzas — pagos y agenda             |
+| `feat/reportes-metricas-negocio`     | Reportes — métricas clave             |
+| `feat/planes-premium-suscripcion`    | Planes — estructura premium           |
+| `feat/editar-perfil-negocio`         | Negocio — edición de perfil           |
+| `feat/contacto-cliente-acciones`     | Clientes — acciones de contacto       |
+| `chore/infraestructura-monorepo`     | Infraestructura base                  |
+| `fix/clientes-email-duplicado`       | Bug — email duplicado en clientes     |
 
 ---
 
@@ -91,37 +91,37 @@ Cada commit sigue el formato del estándar [Conventional Commits](https://www.co
 
 ### Tabla de Tipos (`<tipo>`)
 
-| Tipo | Uso | Ejemplo |
-|------|-----|---------|
-| `feat` | Nueva funcionalidad | `feat(auth): HU-15 — registro con correo electrónico` |
-| `fix` | Corrección de error | `fix(clientes): evitar email duplicado al crear cliente` |
-| `chore` | Mantenimiento, dependencias, config | `chore: actualizar pnpm a v9` |
-| `docs` | Documentación | `docs(readme): agregar instrucciones de instalación` |
-| `style` | Formato, estilos visuales | `style(dashboard): corregir espaciado en tarjetas` |
+| Tipo       | Uso                                        | Ejemplo                                                   |
+| ---------- | ------------------------------------------ | --------------------------------------------------------- |
+| `feat`     | Nueva funcionalidad                        | `feat(auth): HU-15 — registro con correo electrónico`     |
+| `fix`      | Corrección de error                        | `fix(clientes): evitar email duplicado al crear cliente`  |
+| `chore`    | Mantenimiento, dependencias, config        | `chore: actualizar pnpm a v9`                             |
+| `docs`     | Documentación                              | `docs(readme): agregar instrucciones de instalación`      |
+| `style`    | Formato, estilos visuales                  | `style(dashboard): corregir espaciado en tarjetas`        |
 | `refactor` | Refactorización sin cambiar comportamiento | `refactor(catalogo): extraer lógica de filtro a servicio` |
-| `test` | Pruebas | `test(auth): agregar test de login con Google` |
-| `perf` | Mejoras de rendimiento | `perf(ventas): optimizar consulta de cotizaciones` |
-| `ci` | Integración continua / despliegue | `ci: agregar workflow de linting en PRs` |
-| `build` | Sistema de build o dependencias externas | `build: configurar cache de pnpm en CI` |
-| `revert` | Revertir un commit anterior | `revert: deshacer feat(auth): registro con Google` |
+| `test`     | Pruebas                                    | `test(auth): agregar test de login con Google`            |
+| `perf`     | Mejoras de rendimiento                     | `perf(ventas): optimizar consulta de cotizaciones`        |
+| `ci`       | Integración continua / despliegue          | `ci: agregar workflow de linting en PRs`                  |
+| `build`    | Sistema de build o dependencias externas   | `build: configurar cache de pnpm en CI`                   |
+| `revert`   | Revertir un commit anterior                | `revert: deshacer feat(auth): registro con Google`        |
 
 ### Tabla de Alcances (`<alcance>`) — por módulo del proyecto
 
-| Alcance | Módulo / Área | Ejemplo de uso |
-|---------|--------------|---------------|
-| `auth` | Autenticación y registro | `feat(auth): HU-15, HU-16 — registro con email y Google` |
-| `onboarding` | Configuración inicial del negocio | `feat(onboarding): HU-01 — formulario de datos básicos` |
-| `dashboard` | Dashboard y navegación | `feat(dashboard): HU-03 — módulos visibles personalizables` |
-| `clientes` | Gestión de clientes | `feat(clientes): HU-05 — endpoint POST para crear cliente` |
-| `catalogo` | Catálogo de productos/servicios | `feat(catalogo): HU-22 — asignar categorías a productos` |
-| `ventas` | Cotizaciones y pedidos | `feat(ventas): HU-09 — crear cotización con múltiples ítems` |
-| `finanzas` | Pagos, gastos, agenda | `feat(finanzas): HU-12 — registro de adelantos y saldos` |
-| `reportes` | Métricas y reportes | `feat(reportes): HU-17 — endpoint de métricas clave` |
-| `planes` | Planes premium y suscripciones | `feat(planes): HU-14 — estructura de entidades de planes` |
-| `negocio` | Perfil y edición del negocio | `feat(negocio): HU-20 — endpoint PATCH de perfil` |
-| `contacto` | Comunicación con clientes | `feat(contacto): HU-21 — acciones WhatsApp y email` |
-| `infra` | Infraestructura, Docker, CI | `chore(infra): agregar Docker Compose para desarrollo` |
-| `EM-XX` | Alcance por número de épica | `feat(EM-20): HU-01 — registro básico del negocio` |
+| Alcance      | Módulo / Área                     | Ejemplo de uso                                               |
+| ------------ | --------------------------------- | ------------------------------------------------------------ |
+| `auth`       | Autenticación y registro          | `feat(auth): HU-15, HU-16 — registro con email y Google`     |
+| `onboarding` | Configuración inicial del negocio | `feat(onboarding): HU-01 — formulario de datos básicos`      |
+| `dashboard`  | Dashboard y navegación            | `feat(dashboard): HU-03 — módulos visibles personalizables`  |
+| `clientes`   | Gestión de clientes               | `feat(clientes): HU-05 — endpoint POST para crear cliente`   |
+| `catalogo`   | Catálogo de productos/servicios   | `feat(catalogo): HU-22 — asignar categorías a productos`     |
+| `ventas`     | Cotizaciones y pedidos            | `feat(ventas): HU-09 — crear cotización con múltiples ítems` |
+| `finanzas`   | Pagos, gastos, agenda             | `feat(finanzas): HU-12 — registro de adelantos y saldos`     |
+| `reportes`   | Métricas y reportes               | `feat(reportes): HU-17 — endpoint de métricas clave`         |
+| `planes`     | Planes premium y suscripciones    | `feat(planes): HU-14 — estructura de entidades de planes`    |
+| `negocio`    | Perfil y edición del negocio      | `feat(negocio): HU-20 — endpoint PATCH de perfil`            |
+| `contacto`   | Comunicación con clientes         | `feat(contacto): HU-21 — acciones WhatsApp y email`          |
+| `infra`      | Infraestructura, Docker, CI       | `chore(infra): agregar Docker Compose para desarrollo`       |
+| `EM-XX`      | Alcance por número de épica       | `feat(EM-20): HU-01 — registro básico del negocio`           |
 
 ### Reglas para la descripción en español
 
@@ -252,6 +252,7 @@ gh pr merge feat/pantalla-recuperar-contrasena --merge --delete-branch
 ```
 
 Salida esperada:
+
 ```
 ✓ Merged pull request #XX (feat/pantalla-recuperar-contrasena)
 ✓ Deleted branch feat/pantalla-recuperar-contrasena
@@ -288,8 +289,8 @@ Breve descripción de los cambios introducidos.
 
 ## Archivos modificados
 
-| Archivo | Cambio |
-|---------|--------|
+| Archivo             | Cambio                 |
+| ------------------- | ---------------------- |
 | \`ruta/archivo.ts\` | Descripción del cambio |
 
 ## Historias de usuario
@@ -404,16 +405,16 @@ $ git log --oneline --graph develop
 
 ## Resumen de Comandos Esenciales
 
-| Acción | Comando |
-|--------|---------|
-| Sincronizar develop | `git checkout develop && git pull origin develop` |
-| Crear rama | `git checkout -b <tipo>/<descripcion>` |
-| Commit | `git commit -m "tipo(alcance): descripción en español"` |
-| Push inicial | `git push -u origin <rama>` |
-| Crear PR | `gh pr create --base develop --head <rama> --title "..." --body "..."` |
-| Merge PR | `gh pr merge <rama> --merge --delete-branch` |
-| Ver PRs abiertos | `gh pr list --base develop` |
-| Ver estado PR | `gh pr view <rama>` |
+| Acción              | Comando                                                                |
+| ------------------- | ---------------------------------------------------------------------- |
+| Sincronizar develop | `git checkout develop && git pull origin develop`                      |
+| Crear rama          | `git checkout -b <tipo>/<descripcion>`                                 |
+| Commit              | `git commit -m "tipo(alcance): descripción en español"`                |
+| Push inicial        | `git push -u origin <rama>`                                            |
+| Crear PR            | `gh pr create --base develop --head <rama> --title "..." --body "..."` |
+| Merge PR            | `gh pr merge <rama> --merge --delete-branch`                           |
+| Ver PRs abiertos    | `gh pr list --base develop`                                            |
+| Ver estado PR       | `gh pr view <rama>`                                                    |
 
 ---
 
@@ -438,13 +439,13 @@ gh pr list --base develop --state merged --limit 5
 
 ## Riesgos y Buenas Prácticas
 
-| Riesgo | Mitigación |
-|--------|------------|
-| **Rama desactualizada** vs develop | Siempre hacer `git pull origin develop` antes de crear la rama y antes de pushear. |
-| **Conflictos al mergear** | Sincronizar develop frecuentemente. Si hay conflictos, resolver localmente con `git merge develop` antes del PR. |
-| **Commits sin formato** | Usar hooks de commitlint o recordar la tabla de tipos. Revisar `git log --oneline` antes de pushear. |
-| **Ramas huérfanas sin PR** | Eliminar ramas locales ya mergeadas: `git branch -d feat/...` |
-| **PR sin descripción** | Usar siempre la plantilla de descripción de PR. Un PR sin descripción clara dificulta la revisión. |
+| Riesgo                             | Mitigación                                                                                                       |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Rama desactualizada** vs develop | Siempre hacer `git pull origin develop` antes de crear la rama y antes de pushear.                               |
+| **Conflictos al mergear**          | Sincronizar develop frecuentemente. Si hay conflictos, resolver localmente con `git merge develop` antes del PR. |
+| **Commits sin formato**            | Usar hooks de commitlint o recordar la tabla de tipos. Revisar `git log --oneline` antes de pushear.             |
+| **Ramas huérfanas sin PR**         | Eliminar ramas locales ya mergeadas: `git branch -d feat/...`                                                    |
+| **PR sin descripción**             | Usar siempre la plantilla de descripción de PR. Un PR sin descripción clara dificulta la revisión.               |
 
 ### Buenas prácticas
 

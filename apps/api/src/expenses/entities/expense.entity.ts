@@ -67,7 +67,7 @@ export class ExpenseEntity {
 
   @ApiProperty({
     description: 'Total del gasto',
-    example: 250.00,
+    example: 250.0,
   })
   @Column({ type: 'numeric', name: 'total', precision: 10, scale: 2 })
   total!: string;

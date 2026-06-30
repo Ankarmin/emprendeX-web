@@ -11,7 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -27,14 +32,20 @@ import { SalesService } from './sales.service';
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
-  @ApiOperation({ summary: 'Listar cotizaciones', description: 'Lista todas las cotizaciones del negocio.' })
+  @ApiOperation({
+    summary: 'Listar cotizaciones',
+    description: 'Lista todas las cotizaciones del negocio.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de cotizaciones.' })
   @Get('cotizaciones')
   listQuotations(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.salesService.listQuotations(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'Crear cotización', description: 'Crea una nueva cotización con sus detalles.' })
+  @ApiOperation({
+    summary: 'Crear cotización',
+    description: 'Crea una nueva cotización con sus detalles.',
+  })
   @ApiResponse({ status: 201, description: 'Cotización creada.' })
   @Post('cotizaciones')
   createQuotation(
@@ -55,7 +66,10 @@ export class SalesController {
     await this.salesService.removeQuotation(currentUser.id, quotationId);
   }
 
-  @ApiOperation({ summary: 'Convertir cotización a pedido', description: 'Convierte una cotización existente en un pedido.' })
+  @ApiOperation({
+    summary: 'Convertir cotización a pedido',
+    description: 'Convierte una cotización existente en un pedido.',
+  })
   @ApiResponse({ status: 201, description: 'Cotización convertida a pedido.' })
   @Post('cotizaciones/:quotationId/convertir')
   convertQuotationToOrder(
@@ -68,14 +82,20 @@ export class SalesController {
     );
   }
 
-  @ApiOperation({ summary: 'Listar operaciones', description: 'Lista todas las operaciones (pedidos) del negocio.' })
+  @ApiOperation({
+    summary: 'Listar operaciones',
+    description: 'Lista todas las operaciones (pedidos) del negocio.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de operaciones.' })
   @Get('operaciones')
   listOperations(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.salesService.listOperations(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'Obtener operación', description: 'Obtiene un pedido por ID.' })
+  @ApiOperation({
+    summary: 'Obtener operación',
+    description: 'Obtiene un pedido por ID.',
+  })
   @ApiResponse({ status: 200, description: 'Operación encontrada.' })
   @Get('operaciones/:operationId')
   findOperationById(
@@ -85,7 +105,10 @@ export class SalesController {
     return this.salesService.findOperationById(currentUser.id, operationId);
   }
 
-  @ApiOperation({ summary: 'Listar pedidos pendientes', description: 'Lista todos los pedidos en estado pendiente.' })
+  @ApiOperation({
+    summary: 'Listar pedidos pendientes',
+    description: 'Lista todos los pedidos en estado pendiente.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de pedidos pendientes.' })
   @Get('pedidos/pendientes')
   listPendingOrders(@CurrentUser() currentUser: AuthenticatedUser) {

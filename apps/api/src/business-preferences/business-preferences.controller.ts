@@ -1,5 +1,10 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
@@ -18,14 +23,20 @@ export class BusinessPreferencesController {
     private readonly businessPreferencesService: BusinessPreferencesService,
   ) {}
 
-  @ApiOperation({ summary: 'Obtener preferencias', description: 'Obtiene las preferencias del negocio autenticado.' })
+  @ApiOperation({
+    summary: 'Obtener preferencias',
+    description: 'Obtiene las preferencias del negocio autenticado.',
+  })
   @ApiResponse({ status: 200 })
   @Get()
   getMyPreferences(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.businessPreferencesService.getMyPreferences(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'Actualizar preferencias', description: 'Actualiza paleta de colores y logo del negocio.' })
+  @ApiOperation({
+    summary: 'Actualizar preferencias',
+    description: 'Actualiza paleta de colores y logo del negocio.',
+  })
   @ApiResponse({ status: 200 })
   @Patch()
   updateMyPreferences(

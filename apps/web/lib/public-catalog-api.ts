@@ -2,7 +2,7 @@ import type {
   PublicCatalogState,
   SubmitPublicQuotationPayload,
   SubmitPublicQuotationResponse,
-} from './public-catalog-types';
+} from "./public-catalog-types";
 
 type ApiErrorPayload = {
   message?: string | string[];
@@ -21,19 +21,22 @@ function getApiBaseUrl() {
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
   if (!apiBaseUrl) {
-    throw new Error('NEXT_PUBLIC_API_BASE_URL no esta configurada');
+    throw new Error("NEXT_PUBLIC_API_BASE_URL no esta configurada");
   }
 
-  return apiBaseUrl.replace(/\/+$/, '');
+  return apiBaseUrl.replace(/\/+$/, "");
 }
 
-async function requestPublicApi<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestPublicApi<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    cache: 'no-store',
+    cache: "no-store",
     ...init,
     headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
+      Accept: "application/json",
+      "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
   });
@@ -42,24 +45,27 @@ async function requestPublicApi<T>(path: string, init?: RequestInit): Promise<T>
   const payload = rawBody ? (JSON.parse(rawBody) as unknown) : null;
 
   if (!response.ok) {
-    throw new PublicCatalogApiError(getApiErrorMessage(payload), response.status);
+    throw new PublicCatalogApiError(
+      getApiErrorMessage(payload),
+      response.status,
+    );
   }
 
   return payload as T;
 }
 
 function getApiErrorMessage(payload: unknown) {
-  if (!payload || typeof payload !== 'object' || !('message' in payload)) {
-    return 'No se pudo completar la solicitud.';
+  if (!payload || typeof payload !== "object" || !("message" in payload)) {
+    return "No se pudo completar la solicitud.";
   }
 
   const message = (payload as ApiErrorPayload).message;
 
   if (Array.isArray(message)) {
-    return message[0] ?? 'No se pudo completar la solicitud.';
+    return message[0] ?? "No se pudo completar la solicitud.";
   }
 
-  return message ?? 'No se pudo completar la solicitud.';
+  return message ?? "No se pudo completar la solicitud.";
 }
 
 export function isPublicCatalogApiError(
@@ -81,7 +87,7 @@ export function submitPublicQuotation(
   return requestPublicApi<SubmitPublicQuotationResponse>(
     `/catalogo-publico/${slug}/cotizaciones`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(payload),
     },
   );
@@ -93,14 +99,14 @@ export function parsePublicCatalogState(payload: unknown): PublicCatalogState {
 
   return {
     business: {
-      id: requiredString(business.id, 'catalog.business.id'),
-      name: requiredString(business.name, 'catalog.business.name'),
-      category: requiredString(business.category, 'catalog.business.category'),
-      slug: requiredString(business.slug, 'catalog.business.slug'),
+      id: requiredString(business.id, "catalog.business.id"),
+      name: requiredString(business.name, "catalog.business.name"),
+      category: requiredString(business.category, "catalog.business.category"),
+      slug: requiredString(business.slug, "catalog.business.slug"),
       logoUrl: optionalString(business.logoUrl),
       colorPaletteId: parseColorPaletteId(business.colorPaletteId),
     },
-    items: requiredArray(catalog.items, 'catalog.items').map((item, index) =>
+    items: requiredArray(catalog.items, "catalog.items").map((item, index) =>
       parsePublicCatalogItem(item, index),
     ),
   };
@@ -133,27 +139,29 @@ function parsePublicCatalogItem(payload: unknown, index: number) {
   };
 }
 
-function parseColorPaletteId(value: unknown): PublicCatalogState['business']['colorPaletteId'] {
+function parseColorPaletteId(
+  value: unknown,
+): PublicCatalogState["business"]["colorPaletteId"] {
   switch (value) {
-    case 'violet':
-    case 'ocean':
-    case 'forest':
-    case 'ember':
-    case 'rose':
-    case 'slate':
-    case 'graphite':
-    case 'sand':
+    case "violet":
+    case "ocean":
+    case "forest":
+    case "ember":
+    case "rose":
+    case "slate":
+    case "graphite":
+    case "sand":
       return value;
     default:
-      throw new Error('catalog.business.colorPaletteId no es válido');
+      throw new Error("catalog.business.colorPaletteId no es válido");
   }
 }
 
 function parseItemClass(
   value: unknown,
   path: string,
-): PublicCatalogState['items'][number]['itemClass'] {
-  if (value === 'Producto' || value === 'Servicio') {
+): PublicCatalogState["items"][number]["itemClass"] {
+  if (value === "Producto" || value === "Servicio") {
     return value;
   }
 
@@ -161,11 +169,11 @@ function parseItemClass(
 }
 
 function parsePrice(value: unknown, path: string) {
-  if (typeof value === 'string' && value.trim()) {
+  if (typeof value === "string" && value.trim()) {
     return value;
   }
 
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return value.toFixed(2);
   }
 
@@ -177,7 +185,7 @@ function parseNullableNumber(value: unknown, path: string) {
     return null;
   }
 
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
 
@@ -193,7 +201,7 @@ function requiredArray(value: unknown, path: string) {
 }
 
 function requiredString(value: unknown, path: string) {
-  if (typeof value === 'string' && value.trim()) {
+  if (typeof value === "string" && value.trim()) {
     return value;
   }
 
@@ -201,13 +209,13 @@ function requiredString(value: unknown, path: string) {
 }
 
 function optionalString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value : null;
+  return typeof value === "string" && value.trim() ? value : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     return value as Record<string, unknown>;
   }
 
-  throw new Error('Respuesta de catálogo público inválida');
+  throw new Error("Respuesta de catálogo público inválida");
 }

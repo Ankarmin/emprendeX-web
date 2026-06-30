@@ -1,5 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
@@ -13,7 +18,10 @@ import { PlansService } from './plans.service';
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 
-  @ApiOperation({ summary: 'Listar planes', description: 'Lista todos los planes de suscripción disponibles.' })
+  @ApiOperation({
+    summary: 'Listar planes',
+    description: 'Lista todos los planes de suscripción disponibles.',
+  })
   @ApiResponse({ status: 200 })
   @Get()
   list() {

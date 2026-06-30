@@ -64,7 +64,7 @@ export class ExpenseDetailEntity {
 
   @ApiProperty({
     description: 'Subtotal del detalle de gasto',
-    example: 125.00,
+    example: 125.0,
   })
   @Column({ type: 'numeric', name: 'subtotal', precision: 10, scale: 2 })
   subtotal!: string;

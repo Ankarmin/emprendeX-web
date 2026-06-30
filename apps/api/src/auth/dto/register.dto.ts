@@ -26,7 +26,10 @@ export class RegisterDto {
   @MaxLength(100)
   lastName!: string;
 
-  @ApiProperty({ description: 'Documento Nacional de Identidad', example: '12345678' })
+  @ApiProperty({
+    description: 'Documento Nacional de Identidad',
+    example: '12345678',
+  })
   @Transform(transformTrimmedString)
   @IsString()
   @Matches(DNI_REGEX, { message: DNI_VALIDATION_MESSAGE })
@@ -37,23 +40,35 @@ export class RegisterDto {
   @Matches(/^\+?[0-9]{6,20}$/)
   phone!: string;
 
-  @ApiProperty({ description: 'Correo electrónico', example: 'usuario@ejemplo.com' })
+  @ApiProperty({
+    description: 'Correo electrónico',
+    example: 'usuario@ejemplo.com',
+  })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ description: 'Contraseña (mínimo 8 caracteres)', example: 'MiPassword123' })
+  @ApiProperty({
+    description: 'Contraseña (mínimo 8 caracteres)',
+    example: 'MiPassword123',
+  })
   @IsString()
   @MinLength(8)
   @MaxLength(72)
   password!: string;
 
-  @ApiProperty({ description: 'Nombre del negocio o emprendimiento', example: 'Panadería Delicias' })
+  @ApiProperty({
+    description: 'Nombre del negocio o emprendimiento',
+    example: 'Panadería Delicias',
+  })
   @IsString()
   @MinLength(2)
   @MaxLength(100)
   businessName!: string;
 
-  @ApiProperty({ description: 'Categoría del negocio', example: 'Alimentos y Bebidas' })
+  @ApiProperty({
+    description: 'Categoría del negocio',
+    example: 'Alimentos y Bebidas',
+  })
   @IsString()
   @MinLength(2)
   @MaxLength(100)

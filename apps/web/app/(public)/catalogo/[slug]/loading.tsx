@@ -1,4 +1,4 @@
-import { PublicShell } from '@/components/public-catalog/public-shell';
+import { PublicShell } from "@/components/public-catalog/public-shell";
 
 export default function LoadingCatalogPage() {
   return (
@@ -30,7 +30,10 @@ export default function LoadingCatalogPage() {
         <main className="px-3 pt-3">
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
             {Array.from({ length: 12 }).map((_, index) => (
-              <div key={index} className="overflow-hidden rounded-lg border bg-card">
+              <div
+                key={index}
+                className="overflow-hidden rounded-lg border bg-card"
+              >
                 <div className="aspect-square bg-muted" />
                 <div className="space-y-1.5 p-1.5">
                   <div className="h-3 w-full rounded-full bg-muted" />

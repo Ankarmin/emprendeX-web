@@ -1,18 +1,18 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { PublicCatalogClient } from '@/components/public-catalog/public-catalog-client';
-import { PublicShell } from '@/components/public-catalog/public-shell';
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { PublicCatalogClient } from "@/components/public-catalog/public-catalog-client";
+import { PublicShell } from "@/components/public-catalog/public-shell";
 import {
   fetchPublicCatalog,
   isPublicCatalogApiError,
-} from '@/lib/public-catalog-api';
+} from "@/lib/public-catalog-api";
 
 type CatalogPageProps = {
   params: Promise<{ slug: string }>;
 };
 
 export const metadata: Metadata = {
-  title: 'Catálogo público',
+  title: "Catálogo público",
 };
 
 export default async function CatalogPage({ params }: CatalogPageProps) {

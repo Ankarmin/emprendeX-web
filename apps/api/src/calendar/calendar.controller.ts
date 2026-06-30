@@ -1,5 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
@@ -15,7 +20,10 @@ import { CalendarService } from './calendar.service';
 export class CalendarController {
   constructor(private readonly calendarService: CalendarService) {}
 
-  @ApiOperation({ summary: 'Listar eventos', description: 'Lista los eventos del calendario del negocio.' })
+  @ApiOperation({
+    summary: 'Listar eventos',
+    description: 'Lista los eventos del calendario del negocio.',
+  })
   @ApiResponse({ status: 200 })
   @Get('events')
   listEvents(@CurrentUser() currentUser: AuthenticatedUser) {

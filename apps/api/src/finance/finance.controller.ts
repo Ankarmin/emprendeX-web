@@ -12,7 +12,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -33,7 +38,10 @@ import { FinanceService } from './finance.service';
 export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
-  @ApiOperation({ summary: 'Resumen financiero', description: 'Obtiene el resumen financiero del negocio.' })
+  @ApiOperation({
+    summary: 'Resumen financiero',
+    description: 'Obtiene el resumen financiero del negocio.',
+  })
   @ApiResponse({ status: 200, description: 'Resumen financiero.' })
   @Get('summary')
   getSummary(@CurrentUser() currentUser: AuthenticatedUser) {
@@ -47,7 +55,10 @@ export class FinanceController {
     return this.financeService.listRecords(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'Detalles de pago', description: 'Obtiene los detalles de un pago específico.' })
+  @ApiOperation({
+    summary: 'Detalles de pago',
+    description: 'Obtiene los detalles de un pago específico.',
+  })
   @ApiResponse({ status: 200, description: 'Detalles del pago.' })
   @Get('payments/:paymentId/details')
   listPaymentDetails(
@@ -123,7 +134,10 @@ export class FinanceController {
   }
 
   @ApiOperation({ summary: 'Actualizar categoría financiera' })
-  @ApiResponse({ status: 200, description: 'Categoría financiera actualizada.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Categoría financiera actualizada.',
+  })
   @Patch('financial-categories/:financialCategoryId')
   updateFinancialCategory(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -153,7 +167,10 @@ export class FinanceController {
     );
   }
 
-  @ApiOperation({ summary: 'Registrar pago', description: 'Registra un pago para un pedido.' })
+  @ApiOperation({
+    summary: 'Registrar pago',
+    description: 'Registra un pago para un pedido.',
+  })
   @ApiResponse({ status: 201, description: 'Pago registrado.' })
   @Post('payments')
   createPayment(

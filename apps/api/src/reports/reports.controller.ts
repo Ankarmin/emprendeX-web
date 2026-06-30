@@ -1,6 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -15,14 +20,21 @@ import { ReportsService } from './reports.service';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @ApiOperation({ summary: 'Resumen del negocio', description: 'Obtiene un resumen general del negocio.' })
+  @ApiOperation({
+    summary: 'Resumen del negocio',
+    description: 'Obtiene un resumen general del negocio.',
+  })
   @ApiResponse({ status: 200, description: 'Resumen del negocio.' })
   @Get('overview')
   getOverview(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.reportsService.getOverview(currentUser.id);
   }
 
-  @ApiOperation({ summary: 'KPIs del negocio', description: 'Obtiene indicadores clave de rendimiento del negocio con ajuste de zona horaria.' })
+  @ApiOperation({
+    summary: 'KPIs del negocio',
+    description:
+      'Obtiene indicadores clave de rendimiento del negocio con ajuste de zona horaria.',
+  })
   @ApiResponse({ status: 200, description: 'KPIs del negocio.' })
   @Get('kpis')
   getBusinessKpis(

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { PublicCatalogState } from '@/lib/public-catalog-types';
-import { PublicCatalogExperience } from './public-catalog-experience';
+import { useEffect, useState } from "react";
+import type { PublicCatalogState } from "@/lib/public-catalog-types";
+import { PublicCatalogExperience } from "./public-catalog-experience";
 
 type PublicCatalogClientProps = {
   slug: string;

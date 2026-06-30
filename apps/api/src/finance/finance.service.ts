@@ -168,7 +168,8 @@ export class FinanceService {
   async createPaymentMethod(userId: string, dto: CreatePaymentMethodDto) {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const paymentMethodsRepository =
+        manager.getRepository(PaymentMethodEntity);
       const normalizedName = dto.name.trim();
 
       const existingPaymentMethod = await this.findPaymentMethodByName(
@@ -197,7 +198,8 @@ export class FinanceService {
   ) {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const paymentMethodsRepository =
+        manager.getRepository(PaymentMethodEntity);
       const paymentMethod = await this.getPaymentMethodOrThrow(
         business.businessId,
         paymentMethodId,
@@ -214,7 +216,8 @@ export class FinanceService {
 
         if (
           existingPaymentMethod &&
-          existingPaymentMethod.paymentMethodId !== paymentMethod.paymentMethodId
+          existingPaymentMethod.paymentMethodId !==
+            paymentMethod.paymentMethodId
         ) {
           throw new ConflictException('El método de pago ya está registrado');
         }
@@ -276,8 +279,9 @@ export class FinanceService {
   ) {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const financialCategoriesRepository =
-        manager.getRepository(FinancialCategoryEntity);
+      const financialCategoriesRepository = manager.getRepository(
+        FinancialCategoryEntity,
+      );
       const normalizedName = dto.name.trim();
       const existingCategory = await this.findFinancialCategoryByName(
         business.businessId,
@@ -307,8 +311,9 @@ export class FinanceService {
   ) {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const financialCategoriesRepository =
-        manager.getRepository(FinancialCategoryEntity);
+      const financialCategoriesRepository = manager.getRepository(
+        FinancialCategoryEntity,
+      );
       const financialCategory = await this.getFinancialCategoryOrThrow(
         business.businessId,
         financialCategoryId,
@@ -373,9 +378,11 @@ export class FinanceService {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
       const ordersRepository = manager.getRepository(OrderEntity);
-      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const paymentMethodsRepository =
+        manager.getRepository(PaymentMethodEntity);
       const paymentsRepository = manager.getRepository(PaymentEntity);
-      const paymentDetailsRepository = manager.getRepository(PaymentDetailEntity);
+      const paymentDetailsRepository =
+        manager.getRepository(PaymentDetailEntity);
       const order = await ordersRepository.findOne({
         where: { orderId: dto.orderId, businessId: business.businessId },
         relations: { quotation: true, payment: { paymentDetails: true } },
@@ -460,11 +467,14 @@ export class FinanceService {
   async createExpense(userId: string, dto: CreateExpenseDto) {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const financialCategoriesRepository =
-        manager.getRepository(FinancialCategoryEntity);
-      const paymentMethodsRepository = manager.getRepository(PaymentMethodEntity);
+      const financialCategoriesRepository = manager.getRepository(
+        FinancialCategoryEntity,
+      );
+      const paymentMethodsRepository =
+        manager.getRepository(PaymentMethodEntity);
       const expensesRepository = manager.getRepository(ExpenseEntity);
-      const expenseDetailsRepository = manager.getRepository(ExpenseDetailEntity);
+      const expenseDetailsRepository =
+        manager.getRepository(ExpenseDetailEntity);
       const financialCategory = await financialCategoriesRepository.findOne({
         where: {
           financialCategoryId: dto.financialCategoryId,
@@ -529,8 +539,10 @@ export class FinanceService {
   }
 
   private async getBusinessOrThrow(userId: string, manager?: EntityManager) {
-    const business =
-      await this.usersService.findPrimaryBusinessByUserId(userId, manager);
+    const business = await this.usersService.findPrimaryBusinessByUserId(
+      userId,
+      manager,
+    );
     if (!business) {
       throw new BadRequestException('Business profile is not configured');
     }
@@ -543,7 +555,8 @@ export class FinanceService {
     manager?: EntityManager,
   ) {
     const paymentMethodsRepository =
-      manager?.getRepository(PaymentMethodEntity) ?? this.paymentMethodsRepository;
+      manager?.getRepository(PaymentMethodEntity) ??
+      this.paymentMethodsRepository;
     const paymentMethod = await paymentMethodsRepository.findOne({
       where: { paymentMethodId, businessId },
     });
@@ -580,7 +593,8 @@ export class FinanceService {
     manager?: EntityManager,
   ) {
     const paymentMethodsRepository =
-      manager?.getRepository(PaymentMethodEntity) ?? this.paymentMethodsRepository;
+      manager?.getRepository(PaymentMethodEntity) ??
+      this.paymentMethodsRepository;
 
     return paymentMethodsRepository
       .createQueryBuilder('paymentMethod')

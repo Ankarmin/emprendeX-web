@@ -112,7 +112,10 @@ export class CustomersService {
 
         return this.mapCustomerWithDni(customer, 0);
       } catch (error) {
-        if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        if (
+          error instanceof QueryFailedError &&
+          this.isUniqueViolation(error)
+        ) {
           throw new ConflictException(this.getUniqueViolationMessage(error));
         }
 
@@ -154,17 +157,18 @@ export class CustomersService {
 
       try {
         const savedCustomer = await customersRepository.save(customer);
-        const operationsCountByCustomer = await this.getOperationsCountByCustomer(
-          business.businessId,
-          manager,
-        );
+        const operationsCountByCustomer =
+          await this.getOperationsCountByCustomer(business.businessId, manager);
 
         return this.mapCustomerWithDni(
           savedCustomer,
           operationsCountByCustomer.get(savedCustomer.customerId) ?? 0,
         );
       } catch (error) {
-        if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        if (
+          error instanceof QueryFailedError &&
+          this.isUniqueViolation(error)
+        ) {
           throw new ConflictException(this.getUniqueViolationMessage(error));
         }
 

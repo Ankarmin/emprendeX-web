@@ -15,39 +15,57 @@ import {
 } from '../../common/utils/dni.util';
 
 export class UpdateCustomerDto {
-  @ApiPropertyOptional({ description: 'Nombres del cliente', example: 'Juan Carlos' })
+  @ApiPropertyOptional({
+    description: 'Nombres del cliente',
+    example: 'Juan Carlos',
+  })
   @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(100)
   firstNames?: string;
 
-  @ApiPropertyOptional({ description: 'Documento Nacional de Identidad (DNI)', example: '12345678' })
+  @ApiPropertyOptional({
+    description: 'Documento Nacional de Identidad (DNI)',
+    example: '12345678',
+  })
   @IsOptional()
   @Transform(transformTrimmedString)
   @IsString()
   @Matches(DNI_REGEX, { message: DNI_VALIDATION_MESSAGE })
   dni?: string;
 
-  @ApiPropertyOptional({ description: 'Apellidos del cliente', example: 'García López' })
+  @ApiPropertyOptional({
+    description: 'Apellidos del cliente',
+    example: 'García López',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   lastNames?: string;
 
-  @ApiPropertyOptional({ description: 'Correo electrónico del cliente', example: 'cliente@ejemplo.com' })
+  @ApiPropertyOptional({
+    description: 'Correo electrónico del cliente',
+    example: 'cliente@ejemplo.com',
+  })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'Teléfono de contacto', example: '999888777' })
+  @ApiPropertyOptional({
+    description: 'Teléfono de contacto',
+    example: '999888777',
+  })
   @IsOptional()
   @IsString()
   @Matches(/^\+?[0-9]{6,20}$/)
   @MaxLength(20)
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Dirección del cliente', example: 'Av. Principal 123, Lima' })
+  @ApiPropertyOptional({
+    description: 'Dirección del cliente',
+    example: 'Av. Principal 123, Lima',
+  })
   @IsOptional()
   @IsString()
   address?: string;

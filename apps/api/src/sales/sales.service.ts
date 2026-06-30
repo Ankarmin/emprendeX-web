@@ -84,7 +84,9 @@ export class SalesService {
         where: { businessId: business.businessId, itemId: In(itemIds) },
       });
       if (items.length !== dto.details.length) {
-        throw new BadRequestException('Uno o más items no existen en el negocio');
+        throw new BadRequestException(
+          'Uno o más items no existen en el negocio',
+        );
       }
 
       const itemMap = new Map(items.map((item) => [item.itemId, item]));
@@ -109,7 +111,9 @@ export class SalesService {
           .createQueryBuilder()
           .update(ProductEntity)
           .set({ stock: () => '"stock" - :quantity' })
-          .where('business_id = :businessId', { businessId: business.businessId })
+          .where('business_id = :businessId', {
+            businessId: business.businessId,
+          })
           .andWhere('item_id = :itemId', { itemId: item.itemId })
           .andWhere('stock >= :quantity', { quantity: detail.quantity })
           .execute();
@@ -291,9 +295,10 @@ export class SalesService {
           total: quotation.total,
           status: 'Pendiente',
           createdAt: quotation.createdAt.toISOString(),
-          originLabel: quotation.origin === QuotationOrigin.PublicCatalog
-            ? 'Origen: Catálogo público'
-            : null,
+          originLabel:
+            quotation.origin === QuotationOrigin.PublicCatalog
+              ? 'Origen: Catálogo público'
+              : null,
         };
       });
 
@@ -335,7 +340,8 @@ export class SalesService {
               ? 'Creada desde catálogo público'
               : null,
           total: order.quotation.total,
-          remainingTotal: order.payment?.remainingTotal ?? order.quotation.total,
+          remainingTotal:
+            order.payment?.remainingTotal ?? order.quotation.total,
           items: order.quotation.quotationDetails.map((detail) => ({
             id: detail.quotationDetailId,
             itemId: detail.itemId,
@@ -372,9 +378,10 @@ export class SalesService {
         deliveryMethod: quotation.deliveryMethod,
         description: quotation.description,
         quotationReferenceCode: quotation.referenceCode,
-        sourceLabel: quotation.origin === QuotationOrigin.PublicCatalog
-          ? 'Creada desde catálogo público'
-          : null,
+        sourceLabel:
+          quotation.origin === QuotationOrigin.PublicCatalog
+            ? 'Creada desde catálogo público'
+            : null,
         total: quotation.total,
         items: quotation.quotationDetails.map((detail) => ({
           id: detail.quotationDetailId,
@@ -415,8 +422,10 @@ export class SalesService {
   }
 
   private async getBusinessOrThrow(userId: string, manager?: EntityManager) {
-    const business =
-      await this.usersService.findPrimaryBusinessByUserId(userId, manager);
+    const business = await this.usersService.findPrimaryBusinessByUserId(
+      userId,
+      manager,
+    );
     if (!business) {
       throw new BadRequestException('Business profile is not configured');
     }
@@ -436,9 +445,10 @@ export class SalesService {
       itemsCount: quotation.quotationDetails.length,
       status: quotation.order ? 'Aprobada' : 'Pendiente',
       createdAt: quotation.createdAt.toISOString(),
-      originLabel: quotation.origin === QuotationOrigin.PublicCatalog
-        ? 'Origen: Catálogo público'
-        : null,
+      originLabel:
+        quotation.origin === QuotationOrigin.PublicCatalog
+          ? 'Origen: Catálogo público'
+          : null,
     };
   }
 
@@ -455,9 +465,10 @@ export class SalesService {
       total: quotation.total,
       status: order.status,
       createdAt: order.createdAt.toISOString(),
-      originLabel: quotation.origin === QuotationOrigin.PublicCatalog
-        ? 'Origen: Catálogo público'
-        : null,
+      originLabel:
+        quotation.origin === QuotationOrigin.PublicCatalog
+          ? 'Origen: Catálogo público'
+          : null,
     };
   }
 

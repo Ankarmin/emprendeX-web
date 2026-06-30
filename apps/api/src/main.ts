@@ -45,7 +45,8 @@ async function bootstrap() {
   });
   app.enableShutdownHooks();
 
-  const apiUrl = configService.get<string>('API_URL') ??
+  const apiUrl =
+    configService.get<string>('API_URL') ??
     (configService.get<string>('RAILWAY_PUBLIC_DOMAIN')
       ? `https://${configService.get<string>('RAILWAY_PUBLIC_DOMAIN')}`
       : undefined) ??
@@ -69,7 +70,8 @@ async function bootstrap() {
     .addServer(apiUrl, 'Servidor actual')
     .build();
 
-  const swaggerPath = configService.get<string>('SWAGGER_DOCS_PATH') ?? 'api/docs';
+  const swaggerPath =
+    configService.get<string>('SWAGGER_DOCS_PATH') ?? 'api/docs';
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup(swaggerPath, app, document, {
     swaggerOptions: {
