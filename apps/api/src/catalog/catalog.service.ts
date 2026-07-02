@@ -595,16 +595,19 @@ export class CatalogService {
   ): Promise<ItemResponse> {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
-      const item = await this.getItemOrThrow(
+      const itemsRepository = manager.getRepository(ItemEntity);
+
+      await itemsRepository.update(
+        { businessId: business.businessId, itemId },
+        { imageUrl },
+      );
+
+      const updatedItem = await this.getItemOrThrow(
         business.businessId,
         itemId,
         manager,
       );
-      const itemsRepository = manager.getRepository(ItemEntity);
-
-      item.imageUrl = imageUrl;
-      const savedItem = await itemsRepository.save(item);
-      return this.mapItem(savedItem);
+      return this.mapItem(updatedItem);
     });
   }
 
