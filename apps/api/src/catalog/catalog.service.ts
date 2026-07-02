@@ -592,7 +592,7 @@ export class CatalogService {
     userId: string,
     itemId: string,
     imageUrl: string | null,
-  ): Promise<ItemEntity> {
+  ): Promise<ItemResponse> {
     return this.rlsContextService.runAsUser(userId, async (manager) => {
       const business = await this.getBusinessOrThrow(userId, manager);
       const item = await this.getItemOrThrow(
@@ -603,7 +603,8 @@ export class CatalogService {
       const itemsRepository = manager.getRepository(ItemEntity);
 
       item.imageUrl = imageUrl;
-      return itemsRepository.save(item);
+      const savedItem = await itemsRepository.save(item);
+      return this.mapItem(savedItem);
     });
   }
 

@@ -229,13 +229,11 @@ export class CatalogController {
       `catalog-${currentUser.id}-${itemId}`,
     );
 
-    const item = await this.catalogService.updateItemImage(
+    return this.catalogService.updateItemImage(
       currentUser.id,
       itemId,
       secureUrl,
     );
-
-    return this.catalogService.getItemById(currentUser.id, item.itemId);
   }
 
   @ApiOperation({ summary: 'Eliminar imagen del ítem' })
