@@ -588,6 +588,17 @@ export class CatalogService {
     return item;
   }
 
+  async updateItemImage(
+    businessId: string,
+    itemId: string,
+    imageUrl: string | null,
+  ): Promise<ItemEntity> {
+    const item = await this.getItemOrThrow(businessId, itemId);
+
+    item.imageUrl = imageUrl;
+    return this.itemsRepository.save(item);
+  }
+
   private async getUnitForItemOrThrow(
     manager: EntityManager,
     businessId: string,
