@@ -72,5 +72,10 @@ export const typeOrmModuleOptions: TypeOrmModuleAsyncOptions = {
           rejectUnauthorized: false,
         }
       : false,
+    extra: {
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    },
   }),
 };
