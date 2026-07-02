@@ -131,19 +131,19 @@ process.on('SIGTERM', () => {
 clearConsole();
 console.log('Preparing EmprendeX Railway development stack...');
 
-const mobileEnvRailway = resolve(mobileDir, '.env.railway.example');
+const mobileEnvRailway = resolve(mobileDir, '.env.railway');
 const mobileEnvLocal = resolve(mobileDir, '.env.local');
 
 if (!existsSync(mobileEnvRailway)) {
   console.error(
-    `[error] mobile/.env.railway.example not found. Create it with your Railway API URL first:\n` +
+    `[error] mobile/.env.railway not found. Create it with your Railway API URL first:\n` +
     `  EXPO_PUBLIC_API_RAILWAY_BASE_URL=https://api-production-xxxx.up.railway.app/api/v1`,
   );
   process.exit(1);
 }
 
 copyFileSync(mobileEnvRailway, mobileEnvLocal);
-console.log(`[env] Copied mobile/.env.railway.example -> mobile/.env.local`);
+console.log(`[env] Copied mobile/.env.railway -> mobile/.env.local`);
 
 if (shouldClearCaches) {
   console.log('Deep clean requested with -c/--clear.');

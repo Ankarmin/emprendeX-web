@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerGuard, ThrottlerModule, minutes } from '@nestjs/throttler';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module';
       envFilePath: '.env.local',
       validate: validateEnvironment,
     }),
+    CacheModule.register({ isGlobal: true, ttl: 30_000 }),
     ThrottlerModule.forRoot([
       {
         name: 'publicCatalogRead',

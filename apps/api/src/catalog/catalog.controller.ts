@@ -12,7 +12,9 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { SkipThrottle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
@@ -38,6 +40,7 @@ import { UpdateUnitDto } from './dto/update-unit.dto';
 @Controller({ path: 'catalogo', version: '1' })
 @UseGuards(JwtAuthGuard)
 @SkipThrottle(SKIP_ALL_THROTTLERS)
+@UseInterceptors(CacheInterceptor)
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
