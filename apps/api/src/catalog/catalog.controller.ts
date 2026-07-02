@@ -11,13 +11,16 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -26,6 +29,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { SKIP_ALL_THROTTLERS } from '../common/throttling/throttler.constants';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ItemClass } from '../database/database.enums';
 import { CatalogService } from './catalog.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -42,7 +46,10 @@ import { UpdateUnitDto } from './dto/update-unit.dto';
 @SkipThrottle(SKIP_ALL_THROTTLERS)
 @UseInterceptors(CacheInterceptor)
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @ApiOperation({
     summary: 'Listar unidades',
@@ -205,5 +212,49 @@ export class CatalogController {
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
   ): Promise<void> {
     await this.catalogService.deleteItem(currentUser.id, itemId);
+  }
+
+  @ApiOperation({ summary: 'Subir imagen del ítem' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 200, description: 'Imagen subida.' })
+  @Post('items/:itemId/image')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadItemImage(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const secureUrl = await this.cloudinaryService.uploadImage(
+      file,
+      `catalog-${currentUser.id}-${itemId}`,
+    );
+
+    const item = await this.catalogService.updateItemImage(
+      currentUser.id,
+      itemId,
+      secureUrl,
+    );
+
+    return this.catalogService.getItemById(currentUser.id, item.itemId);
+  }
+
+  @ApiOperation({ summary: 'Eliminar imagen del ítem' })
+  @ApiResponse({ status: 204, description: 'Imagen eliminada.' })
+  @Delete('items/:itemId/image')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteItemImage(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+  ): Promise<void> {
+    const item = await this.catalogService.getItemById(currentUser.id, itemId);
+
+    if (item.imageUrl) {
+      const publicId = this.cloudinaryService.extractPublicId(item.imageUrl);
+      if (publicId) {
+        await this.cloudinaryService.deleteImage(publicId);
+      }
+    }
+
+    await this.catalogService.updateItemImage(currentUser.id, itemId, null);
   }
 }

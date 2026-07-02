@@ -588,6 +588,25 @@ export class CatalogService {
     return item;
   }
 
+  async updateItemImage(
+    userId: string,
+    itemId: string,
+    imageUrl: string | null,
+  ): Promise<ItemEntity> {
+    return this.rlsContextService.runAsUser(userId, async (manager) => {
+      const business = await this.getBusinessOrThrow(userId, manager);
+      const item = await this.getItemOrThrow(
+        business.businessId,
+        itemId,
+        manager,
+      );
+      const itemsRepository = manager.getRepository(ItemEntity);
+
+      item.imageUrl = imageUrl;
+      return itemsRepository.save(item);
+    });
+  }
+
   private async getUnitForItemOrThrow(
     manager: EntityManager,
     businessId: string,

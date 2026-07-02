@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { BusinessPreferencesModule } from './business-preferences/business-preferences.module';
 import { validateEnvironment } from './config/environment.validation';
 import { RlsModule } from './database/rls/rls.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { CustomersModule } from './customers/customers.module';
 import { HealthModule } from './health/health.module';
 import { typeOrmModuleOptions } from './database/typeorm.config';
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module';
 @Module({
   imports: [
     RlsModule,
+    CloudinaryModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
