@@ -1,4 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -24,6 +25,7 @@ export class PlansController {
   })
   @ApiResponse({ status: 200 })
   @Get()
+  @UseInterceptors(CacheInterceptor)
   list() {
     return this.plansService.list();
   }

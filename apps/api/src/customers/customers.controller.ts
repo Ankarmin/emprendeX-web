@@ -10,7 +10,9 @@ import {
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { SkipThrottle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
@@ -37,6 +39,7 @@ export class CustomersController {
   @ApiOperation({ summary: 'Listar clientes' })
   @ApiResponse({ status: 200, description: 'Lista de clientes.' })
   @Get()
+  @UseInterceptors(CacheInterceptor)
   list(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.customersService.list(currentUser.id);
   }
